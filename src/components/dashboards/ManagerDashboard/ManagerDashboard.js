@@ -1,20 +1,25 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
+import { useAuth } from '../../../hooks/useAuth';
 import Header from '../../common/Header';
 import Sidebar from '../../common/Sidebar';
+import MyProfile from '../../common/MyProfile';
 import DoctorsManagement from './DoctorsManagement';
 import PatientsList from './PatientsList';
+import AppointmentsOverview from './AppointmentsOverview';
 import './ManagerDashboard.css';
 
 const ManagerDashboard = () => {
+  const { user } = useAuth();
   const location = useLocation();
   const currentSection = location.pathname.split('/')[2] || 'overview';
+  const displayName = user?.profile?.name || 'Administrator';
 
   return (
     <div className="layout-container">
       <Sidebar role="manager" />
       <div className="main-content">
-        <Header title="Manager Dashboard" userRole="Administrator" />
+        <Header title="Manager Dashboard" userRole={displayName} />
         <div className="container">
           <div className="stats-grid fade-in-up">
             <div className="stat-card pulse-glow">
@@ -44,6 +49,8 @@ const ManagerDashboard = () => {
 
           {currentSection === 'doctors' && <DoctorsManagement />}
           {currentSection === 'patients' && <PatientsList />}
+          {currentSection === 'appointments' && <AppointmentsOverview />}
+          {currentSection === 'profile' && <MyProfile title="Manager Profile" />}
         </div>
       </div>
     </div>

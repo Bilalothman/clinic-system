@@ -4,6 +4,64 @@
   gap: 1rem;
 }
 
+.create-appointment-form {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  background: rgba(102, 126, 234, 0.06);
+}
+
+.create-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.9rem;
+  margin-bottom: 0.9rem;
+}
+
+.create-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.8rem;
+}
+
+.create-field label {
+  font-weight: 600;
+  color: #334155;
+}
+
+.create-field input,
+.create-field select,
+.create-field textarea {
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  font: inherit;
+  background: #ffffff;
+}
+
+.appointments-filter {
+  display: flex;
+  align-items: end;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.appointments-filter label {
+  font-weight: 600;
+  color: #334155;
+}
+
+.appointments-filter input[type='date'] {
+  padding: 0.65rem 0.8rem;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  font: inherit;
+}
+
 .appointment-card {
   display: flex;
   align-items: center;
@@ -52,6 +110,53 @@
   font-weight: 500;
 }
 
+.appointment-meta {
+  margin-top: 0.55rem;
+  color: #64748b;
+  font-size: 0.92rem;
+}
+
 .appointment-status {
   margin-left: auto;
+}
+
+.detail-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.availability-status {
+  margin-top: 0.9rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.availability-status.available {
+  color: #065f46;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.availability-status.unavailable {
+  color: #7c2d12;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.pre-fee-preview {
+  margin-top: 1rem;
+}
+
+.pre-fee-preview h5 {
+  margin: 0 0 0.75rem;
+  color: #1e293b;
+}
+
+.pre-fee-preview img {
+  width: 100%;
+  max-width: 420px;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
 }

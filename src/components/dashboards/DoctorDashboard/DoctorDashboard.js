@@ -1,21 +1,25 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
+import { useAuth } from '../../../hooks/useAuth';
 import Header from '../../common/Header';
 import Sidebar from '../../common/Sidebar';
+import MyProfile from '../../common/MyProfile';
 import Appointments from './Appointments';
 import Patients from './Patients';
 import MedicalRecords from './MedicalRecords';
 import './DoctorDashboard.css';
 
 const DoctorDashboard = () => {
+  const { user } = useAuth();
   const location = useLocation();
   const currentSection = location.pathname.split('/')[2] || 'overview';
+  const displayName = user?.profile?.name || 'Dr. Smith';
 
   return (
     <div className="layout-container">
       <Sidebar role="doctor" />
       <div className="main-content">
-        <Header title="Doctor Dashboard" userRole="Dr. Smith" />
+        <Header title="Doctor Dashboard" userRole={displayName} />
         <div className="container">
           <div className="stats-grid fade-in-up">
             <div className="stat-card pulse-glow">
@@ -49,6 +53,7 @@ const DoctorDashboard = () => {
           {currentSection === 'appointments' && <Appointments />}
           {currentSection === 'patients' && <Patients />}
           {currentSection === 'records' && <MedicalRecords />}
+          {currentSection === 'profile' && <MyProfile title="Doctor Profile" />}
         </div>
       </div>
     </div>

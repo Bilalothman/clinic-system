@@ -1,23 +1,27 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
+import { useAuth } from '../../../hooks/useAuth';
 import Header from '../../common/Header';
 import Sidebar from '../../common/Sidebar';
+import MyProfile from '../../common/MyProfile';
 import MyAppointments from './MyAppointments';
 import MyRecords from './MyRecords';
 import './PatientDashboard.css';
 
 const PatientDashboard = () => {
+  const { user } = useAuth();
   const location = useLocation();
   const currentSection = location.pathname.split('/')[2] || 'overview';
+  const displayName = user?.profile?.name || 'John Doe';
 
   return (
     <div className="layout-container">
       <Sidebar role="patient" />
       <div className="main-content">
-        <Header title="Patient Portal" userRole="John Doe" />
+        <Header title="Patient Portal" userRole={displayName} />
         <div className="container">
           <div className="welcome-section bounce-in">
-            <h2>Welcome back, John!</h2>
+            <h2>Welcome back, {displayName}!</h2>
             <p>Manage your appointments and medical records</p>
           </div>
           
@@ -41,6 +45,7 @@ const PatientDashboard = () => {
 
           {currentSection === 'appointments' && <MyAppointments />}
           {currentSection === 'records' && <MyRecords />}
+          {currentSection === 'profile' && <MyProfile title="Patient Profile" />}
         </div>
       </div>
     </div>

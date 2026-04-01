@@ -22,21 +22,42 @@ const Login = () => {
       
       // MANAGER LOGIN (Unique as requested)
       if (formData.email === 'manager@gmail.com' && formData.password === '1234') {
-        login('manager', '1', 'manager-token');
+        login('manager', '1', 'manager-token', {
+          name: 'System Administrator',
+          email: 'manager@gmail.com',
+          phone: '+1-555-100-0001',
+          address: 'Head Office',
+          dob: '-',
+          gender: '-',
+        });
         navigate('/manager');
         return;
       }
       
       // DOCTOR LOGIN (Demo)
       if (formData.email.includes('@doctor.com') && formData.password === 'doctor123') {
-        login('doctor', '101', 'doctor-token');
+        login('doctor', '101', 'doctor-token', {
+          name: 'Dr. John Smith',
+          email: formData.email,
+          phone: '+1-555-100-0101',
+          address: 'City Hospital',
+          dob: '-',
+          gender: '-',
+        });
         navigate('/doctor');
         return;
       }
       
       // PATIENT DEMO LOGIN (Quick access)
       if (formData.email.includes('@patient.com') && formData.password === 'patient123') {
-        login('patient', '201', 'patient-token');
+        login('patient', '201', 'patient-token', {
+          name: 'John Doe',
+          email: formData.email,
+          phone: '+1-555-200-0201',
+          address: 'Demo Patient Address',
+          dob: '-',
+          gender: '-',
+        });
         navigate('/patient');
         return;
       }
@@ -50,7 +71,7 @@ const Login = () => {
       <div className="auth-card">
         <div className="auth-header">
           <h1>🏥 Welcome Back</h1>
-          <p>Sign in to your Hospital Management account</p>
+          <p>Sign in to your Clinic Management account</p>
         </div>
         
         {error && <div className="error-message">{error}</div>}

@@ -1,11 +1,11 @@
 import React, { useEffect, useCallback } from 'react';
-import { 
-  BrowserRouter as Router, 
-  Routes, 
-  Route, 
-  useNavigate, 
-  useLocation, 
-  Navigate 
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  useNavigate,
+  useLocation,
+  Navigate
 } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import Login from './components/auth/Login';
@@ -80,13 +80,17 @@ const DashboardRouter = () => {
       <Route path="/manager" element={<ManagerDashboard />} />
       <Route path="/manager/doctors" element={<ManagerDashboard />} />
       <Route path="/manager/patients" element={<ManagerDashboard />} />
+      <Route path="/manager/appointments" element={<ManagerDashboard />} />
+      <Route path="/manager/profile" element={<ManagerDashboard />} />
       <Route path="/doctor" element={<DoctorDashboard />} />
       <Route path="/doctor/appointments" element={<DoctorDashboard />} />
       <Route path="/doctor/patients" element={<DoctorDashboard />} />
       <Route path="/doctor/records" element={<DoctorDashboard />} />
+      <Route path="/doctor/profile" element={<DoctorDashboard />} />
       <Route path="/patient" element={<PatientDashboard />} />
       <Route path="/patient/appointments" element={<PatientDashboard />} />
       <Route path="/patient/records" element={<PatientDashboard />} />
+      <Route path="/patient/profile" element={<PatientDashboard />} />
       <Route path="*" element={<Navigate to={getDashboardPath(user.role)} replace />} />
     </Routes>
   );
@@ -97,13 +101,13 @@ function AppContent() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
-      <Route 
-        path="/*" 
+      <Route
+        path="/*"
         element={
           <ProtectedRoute>
             <DashboardRouter />
           </ProtectedRoute>
-        } 
+        }
       />
     </Routes>
   );

@@ -1,5 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import LoadingSpinner from '../../common/LoadingSpinner';
+import {
+  getDoctorFeesFromStorage,
+  saveDoctorFeesToStorage,
+  subscribeToDoctorFees,
+} from '../../../utils/doctorFeesStore';
 import './DoctorsManagement.css';
 
 const initialDoctors = [
@@ -8,14 +13,20 @@ const initialDoctors = [
   { id: 3, name: 'Dr. Michael Brown', specialty: 'Orthopedics', phone: '+1-234-567-8903', email: 'michael.brown@doctor.com', password: 'doctor123', status: 'inactive' },
 ];
 
-const emptyDoctor = { name: '', specialty: '', phone: '', email: '', password: '' };
+const emptyDoctor = { name: '', specialty: '', phone: '', email: '', password: '', fee: '' };
 
 const DoctorsManagement = () => {
   const [doctors, setDoctors] = useState(initialDoctors);
+  const [doctorFees, setDoctorFees] = useState(() => getDoctorFeesFromStorage());
   const [loading, setLoading] = useState(false);
   const [newDoctor, setNewDoctor] = useState(emptyDoctor);
   const [editingDoctorId, setEditingDoctorId] = useState(null);
   const [feedback, setFeedback] = useState('Manage doctors, update records, or refresh the demo list.');
+
+  React.useEffect(() => {
+    const unsubscribe = subscribeToDoctorFees(setDoctorFees);
+    return unsubscribe;
+  }, []);
 
   const nextDoctorId = useMemo(
     () => doctors.reduce((maxId, doctor) => Math.max(maxId, doctor.id), 0) + 1,
@@ -30,6 +41,7 @@ const DoctorsManagement = () => {
     setDoctors(initialDoctors);
     setNewDoctor(emptyDoctor);
     setEditingDoctorId(null);
+    setDoctorFees(getDoctorFeesFromStorage());
     setFeedback('Doctor list refreshed to the default hospital roster.');
   };
 
@@ -41,6 +53,7 @@ const DoctorsManagement = () => {
       phone: doctor.phone,
       email: doctor.email,
       password: doctor.password,
+      fee: String(doctorFees[doctor.name] || ''),
     });
     setFeedback(`Editing ${doctor.name}. Update the form and save your changes.`);
   };
@@ -48,6 +61,13 @@ const DoctorsManagement = () => {
   const handleDeleteDoctor = (doctorId) => {
     const doctorToDelete = doctors.find((doctor) => doctor.id === doctorId);
     setDoctors((current) => current.filter((doctor) => doctor.id !== doctorId));
+
+    if (doctorToDelete?.name) {
+      const updatedFees = { ...doctorFees };
+      delete updatedFees[doctorToDelete.name];
+      saveDoctorFeesToStorage(updatedFees);
+    }
+
     setFeedback(`${doctorToDelete?.name || 'Doctor'} was removed from the roster.`);
 
     if (editingDoctorId === doctorId) {
@@ -67,18 +87,37 @@ const DoctorsManagement = () => {
     setLoading(true);
 
     setTimeout(() => {
+      const parsedFee = Number(newDoctor.fee);
+      const normalizedFee = Number.isFinite(parsedFee) && parsedFee > 0 ? Math.round(parsedFee) : 0;
+
       if (editingDoctorId) {
+        const editedDoctor = doctors.find((doctor) => doctor.id === editingDoctorId);
+
         setDoctors((current) =>
           current.map((doctor) =>
             doctor.id === editingDoctorId ? { ...doctor, ...newDoctor } : doctor
           )
         );
+
+        const updatedFees = { ...doctorFees };
+
+        if (editedDoctor?.name && editedDoctor.name !== newDoctor.name) {
+          delete updatedFees[editedDoctor.name];
+        }
+
+        updatedFees[newDoctor.name] = normalizedFee;
+        saveDoctorFeesToStorage(updatedFees);
+
         setFeedback(`${newDoctor.name} was updated successfully.`);
       } else {
         setDoctors((current) => [
           ...current,
           { ...newDoctor, id: nextDoctorId, status: 'active' },
         ]);
+        saveDoctorFeesToStorage({
+          ...doctorFees,
+          [newDoctor.name]: normalizedFee,
+        });
         setFeedback(`${newDoctor.name} was added to the doctor roster.`);
       }
 
@@ -106,6 +145,7 @@ const DoctorsManagement = () => {
           <input placeholder="Phone" value={newDoctor.phone} onChange={(e) => handleChange('phone', e.target.value)} required />
           <input type="email" placeholder="Email" value={newDoctor.email} onChange={(e) => handleChange('email', e.target.value)} required />
           <input type="password" placeholder="Password" value={newDoctor.password} onChange={(e) => handleChange('password', e.target.value)} required />
+          <input type="number" min="1" placeholder="Consultation Fee" value={newDoctor.fee} onChange={(e) => handleChange('fee', e.target.value)} required />
         </div>
 
         <div className="form-actions">
@@ -127,6 +167,7 @@ const DoctorsManagement = () => {
               <th>Name</th>
               <th>Specialty</th>
               <th>Phone</th>
+              <th>Fee</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
@@ -137,6 +178,7 @@ const DoctorsManagement = () => {
                 <td>{doctor.name}</td>
                 <td><span className="specialty-badge">{doctor.specialty}</span></td>
                 <td>{doctor.phone}</td>
+                <td><span className="fee-badge">${doctorFees[doctor.name] || 0}</span></td>
                 <td><span className={`status-badge ${doctor.status}`}>{doctor.status}</span></td>
                 <td>
                   <button type="button" className="btn-secondary btn-sm" onClick={() => handleEditDoctor(doctor)}>

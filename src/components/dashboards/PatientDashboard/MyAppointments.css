@@ -45,6 +45,32 @@
   box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.12);
 }
 
+.selected-file {
+  margin-top: 0.4rem;
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
+.doctor-fee-note {
+  margin-bottom: 1rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 10px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #065f46;
+  font-weight: 600;
+}
+
+.doctor-availability-note {
+  margin-bottom: 1rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 10px;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  color: #1e3a8a;
+  font-weight: 600;
+}
+
 .appointments-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
@@ -82,4 +108,10 @@
   margin: 0 0 1.25rem;
   color: #475569;
   line-height: 1.6;
+}
+
+.attachment-note {
+  font-size: 0.9rem;
+  color: #0369a1;
+  margin-bottom: 1rem;
 }

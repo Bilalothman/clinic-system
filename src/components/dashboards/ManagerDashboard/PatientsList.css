@@ -15,6 +15,33 @@
   box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.12);
 }
 
+.patient-form {
+  margin-bottom: 1.25rem;
+  padding: 1rem;
+  border-radius: 14px;
+  background: rgba(102, 126, 234, 0.06);
+  border: 1px solid rgba(102, 126, 234, 0.2);
+}
+
+.patient-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.8rem;
+}
+
+.patient-form-grid input {
+  padding: 0.72rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  font: inherit;
+}
+
+.patient-form-actions {
+  display: flex;
+  gap: 0.65rem;
+  margin-top: 0.8rem;
+}
+
 .patients-list {
   display: flex;
   flex-direction: column;
@@ -75,6 +102,12 @@
   flex-direction: column;
   align-items: flex-end;
   gap: 0.5rem;
+}
+
+.patient-actions {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
 }
 
 .last-visit {

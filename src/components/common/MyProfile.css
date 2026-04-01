@@ -1,0 +1,119 @@
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.profile-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(248, 250, 252, 0.85);
+}
+
+.profile-item-wide {
+  grid-column: span 2;
+}
+
+.profile-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.profile-value {
+  color: #1e293b;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.profile-role {
+  text-transform: capitalize;
+}
+
+.doctor-fee-panel {
+  margin-top: 1.2rem;
+  padding-top: 1rem;
+}
+
+.doctor-settings-panel {
+  margin-top: 1.2rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.doctor-fee-panel h4 {
+  margin: 0 0 0.75rem;
+  color: #1e293b;
+}
+
+.doctor-fee-row {
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+.doctor-fee-row input {
+  width: 180px;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font: inherit;
+}
+
+.doctor-fee-current {
+  margin-top: 0.65rem;
+  color: #334155;
+  font-weight: 600;
+}
+
+.doctor-fee-feedback {
+  margin-top: 0.65rem;
+  color: #0369a1;
+  font-weight: 600;
+}
+
+.doctor-availability-panel {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.doctor-availability-panel h4 {
+  margin: 0 0 0.75rem;
+  color: #1e293b;
+}
+
+.availability-group {
+  margin-bottom: 0.8rem;
+}
+
+.availability-title {
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 0.4rem;
+}
+
+.availability-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 0.9rem;
+}
+
+.availability-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #334155;
+}
+
+@media (max-width: 768px) {
+  .profile-item-wide {
+    grid-column: span 1;
+  }
+}

@@ -29,7 +29,14 @@ const Register = () => {
     setTimeout(() => {
       setLoading(false);
       // Auto-login as patient after registration
-      login('patient', Math.floor(Math.random() * 1000) + 200);
+      login('patient', Math.floor(Math.random() * 1000) + 200, undefined, {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        address: formData.address,
+        dob: formData.dob,
+        gender: formData.gender,
+      });
       navigate('/patient');
     }, 2000);
   };
