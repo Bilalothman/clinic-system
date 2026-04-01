@@ -63,3 +63,65 @@
   margin-top: 1rem;
   font-size: 0.95rem;
 }
+
+.lab-results-section {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.lab-results-section h4 {
+  margin: 0 0 0.8rem;
+  color: #1e293b;
+}
+
+.lab-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.lab-result-card {
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.lab-result-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.lab-result-head h5 {
+  margin: 0;
+  color: #1e293b;
+}
+
+.lab-result-head span {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.lab-result-image {
+  width: 100%;
+  max-width: 360px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+}
+
+.lab-result-notes {
+  margin-top: 0.55rem;
+  color: #475569;
+}
+
+.empty-state {
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  border: 1px dashed rgba(148, 163, 184, 0.5);
+  color: #64748b;
+  background: rgba(255, 255, 255, 0.65);
+}
