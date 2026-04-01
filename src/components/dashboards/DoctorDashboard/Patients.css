@@ -1,0 +1,75 @@
+.patient-search {
+  width: 100%;
+  margin-bottom: 1.25rem;
+  padding: 1rem 1.1rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.95);
+  font-size: 0.98rem;
+  transition: all 0.3s ease;
+}
+
+.patient-search:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.12);
+}
+
+.patients-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+.patient-widget {
+  background: rgba(248, 250, 252, 0.8);
+  padding: 1.5rem;
+  border-radius: 16px;
+  border: 1px solid rgba(102, 126, 234, 0.1);
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+.patient-widget:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 40px rgba(102, 126, 234, 0.15);
+}
+
+.patient-widget h4 {
+  margin: 0 0 0.5rem 0;
+  color: #1e293b;
+}
+
+.condition {
+  color: #64748b;
+  font-size: 0.95rem;
+  margin-bottom: 1rem;
+  font-weight: 500;
+}
+
+.next-visit {
+  display: block;
+  color: #10b981;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.btn-full {
+  width: 100%;
+}
+
+.patient-summary {
+  margin-top: 1rem;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.empty-state {
+  margin-top: 1rem;
+  padding: 1rem 1.2rem;
+  border-radius: 14px;
+  background: rgba(248, 250, 252, 0.95);
+  border: 1px dashed rgba(148, 163, 184, 0.45);
+  color: #64748b;
+  text-align: center;
+}

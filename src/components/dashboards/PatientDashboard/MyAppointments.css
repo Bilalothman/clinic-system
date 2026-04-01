@@ -1,0 +1,85 @@
+.booking-form {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  border-radius: 18px;
+  background: rgba(102, 126, 234, 0.06);
+  border: 1px solid rgba(102, 126, 234, 0.14);
+}
+
+.booking-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.booking-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-bottom: 1rem;
+}
+
+.booking-field label {
+  color: #334155;
+  font-weight: 700;
+}
+
+.booking-field input,
+.booking-field select,
+.booking-field textarea {
+  width: 100%;
+  padding: 0.95rem 1rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.95);
+  font: inherit;
+  transition: all 0.3s ease;
+}
+
+.booking-field input:focus,
+.booking-field select:focus,
+.booking-field textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.12);
+}
+
+.appointments-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 1.5rem;
+}
+
+.patient-appointment {
+  flex-direction: column !important;
+  text-align: center;
+  padding: 2rem !important;
+}
+
+.appointment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.appointment-date-time {
+  display: flex;
+  gap: 2rem;
+  justify-content: center;
+  margin: 1.5rem 0;
+  font-size: 1.1rem;
+  color: #374151;
+}
+
+.appointment-subtitle {
+  color: #667085;
+  font-weight: 600;
+}
+
+.appointment-reason {
+  margin: 0 0 1.25rem;
+  color: #475569;
+  line-height: 1.6;
+}
