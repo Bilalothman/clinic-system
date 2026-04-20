@@ -1,10 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
-import { getAppointmentsFromStorage } from '../../../utils/appointmentsStore';
+import { useApi } from '../../../hooks/useApi';
 import './MedicalRecords.css';
-
-const LAB_RESULTS_STORAGE_KEY = 'doctorLabResults';
-const MEDICAL_RECORDS_STORAGE_KEY = 'doctorMedicalRecords';
 
 const getTodayIsoDate = () => {
   const now = new Date();
@@ -12,34 +9,6 @@ const getTodayIsoDate = () => {
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
-};
-
-const getStoredLabResults = () => {
-  try {
-    const raw = localStorage.getItem(LAB_RESULTS_STORAGE_KEY);
-    if (!raw) {
-      return [];
-    }
-
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (error) {
-    return [];
-  }
-};
-
-const getStoredMedicalRecords = () => {
-  try {
-    const raw = localStorage.getItem(MEDICAL_RECORDS_STORAGE_KEY);
-    if (!raw) {
-      return [];
-    }
-
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (error) {
-    return [];
-  }
 };
 
 const compressImageToDataUrl = (file) =>
@@ -84,11 +53,9 @@ const defaultRecords = [
 
 const MedicalRecords = () => {
   const { user } = useAuth();
-  const [labResults, setLabResults] = useState(() => getStoredLabResults());
-  const [medicalRecords, setMedicalRecords] = useState(() => {
-    const stored = getStoredMedicalRecords();
-    return stored.length ? stored : defaultRecords;
-  });
+  const { apiCall } = useApi();
+  const [labResults, setLabResults] = useState([]);
+  const [medicalRecords, setMedicalRecords] = useState([]);
   const [feedback, setFeedback] = useState('Add a new lab result for a patient.');
   const [recordFeedback, setRecordFeedback] = useState('Add a medical record for a patient.');
   const [searchTerm, setSearchTerm] = useState('');
@@ -108,11 +75,36 @@ const MedicalRecords = () => {
     date: getTodayIsoDate(),
   });
 
+  const loadData = async () => {
+    try {
+      const [recordsRows, labsRows, appointmentsRows] = await Promise.all([
+        apiCall(`/medical-records?doctorId=${user?.userId || ''}`),
+        apiCall(`/lab-results?doctorId=${user?.userId || ''}`),
+        apiCall(`/appointments?doctorId=${user?.userId || ''}`),
+      ]);
+
+      setMedicalRecords(recordsRows?.length ? recordsRows : defaultRecords);
+      setLabResults(labsRows || []);
+
+      const patientNames = Array.from(new Set((appointmentsRows || []).map((item) => item.patient).filter(Boolean)));
+      setRecordForm((current) => ({ ...current, patient: current.patient || patientNames[0] || '' }));
+      setLabForm((current) => ({ ...current, patient: current.patient || patientNames[0] || '' }));
+    } catch (error) {
+      setFeedback(error.message);
+      setRecordFeedback(error.message);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.userId]);
+
   const patientOptions = useMemo(() => {
-    const fromAppointments = getAppointmentsFromStorage().map((item) => item.patient).filter(Boolean);
     const fromRecords = medicalRecords.map((item) => item.patient);
-    return Array.from(new Set([...fromAppointments, ...fromRecords]));
-  }, [medicalRecords]);
+    const fromLabs = labResults.map((item) => item.patient);
+    return Array.from(new Set([...fromRecords, ...fromLabs].filter(Boolean)));
+  }, [medicalRecords, labResults]);
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
 
@@ -143,30 +135,34 @@ const MedicalRecords = () => {
     }));
   };
 
-  const handleAddMedicalRecord = (event) => {
+  const handleAddMedicalRecord = async (event) => {
     event.preventDefault();
 
-    const newRecord = {
-      id: Date.now(),
-      patient: recordForm.patient.trim(),
-      date: recordForm.date,
-      diagnosis: recordForm.diagnosis.trim(),
-      prescription: recordForm.prescription.trim(),
-      notes: recordForm.notes.trim(),
-      doctor: user?.profile?.name || 'Dr. John Smith',
-    };
+    try {
+      const created = await apiCall('/medical-records', {
+        method: 'POST',
+        body: JSON.stringify({
+          patient: recordForm.patient.trim(),
+          date: recordForm.date,
+          diagnosis: recordForm.diagnosis.trim(),
+          prescription: recordForm.prescription.trim(),
+          notes: recordForm.notes.trim(),
+          doctorId: Number(user?.userId),
+        }),
+      });
 
-    const updated = [newRecord, ...medicalRecords];
-    setMedicalRecords(updated);
-    localStorage.setItem(MEDICAL_RECORDS_STORAGE_KEY, JSON.stringify(updated));
-    setRecordFeedback(`Medical record added for ${newRecord.patient}.`);
-    setRecordForm({
-      patient: '',
-      diagnosis: '',
-      prescription: '',
-      notes: '',
-      date: getTodayIsoDate(),
-    });
+      setMedicalRecords((current) => [created, ...current]);
+      setRecordFeedback(`Medical record added for ${created.patient}.`);
+      setRecordForm({
+        patient: '',
+        diagnosis: '',
+        prescription: '',
+        notes: '',
+        date: getTodayIsoDate(),
+      });
+    } catch (error) {
+      setRecordFeedback(error.message);
+    }
   };
 
   const handleChange = (field, value) => {
@@ -176,7 +172,7 @@ const MedicalRecords = () => {
     }));
   };
 
-  const handleAddLabResult = (event) => {
+  const handleAddLabResult = async (event) => {
     event.preventDefault();
 
     if (!labForm.resultImage) {
@@ -184,28 +180,33 @@ const MedicalRecords = () => {
       return;
     }
 
-    const newResult = {
-      id: Date.now(),
-      patient: labForm.patient.trim(),
-      testName: labForm.testName.trim(),
-      resultImage: labForm.resultImage,
-      resultImageName: labForm.resultImageName,
-      notes: labForm.notes.trim(),
-      date: labForm.date,
-    };
+    try {
+      const created = await apiCall('/lab-results', {
+        method: 'POST',
+        body: JSON.stringify({
+          patient: labForm.patient.trim(),
+          testName: labForm.testName.trim(),
+          resultImage: labForm.resultImage,
+          resultImageName: labForm.resultImageName,
+          notes: labForm.notes.trim(),
+          date: labForm.date,
+          doctorId: Number(user?.userId),
+        }),
+      });
 
-    const updated = [newResult, ...labResults];
-    setLabResults(updated);
-    localStorage.setItem(LAB_RESULTS_STORAGE_KEY, JSON.stringify(updated));
-    setFeedback(`Lab result added for ${newResult.patient}.`);
-    setLabForm({
-      patient: '',
-      testName: '',
-      resultImage: '',
-      resultImageName: '',
-      notes: '',
-      date: getTodayIsoDate(),
-    });
+      setLabResults((current) => [created, ...current]);
+      setFeedback(`Lab result added for ${created.patient}.`);
+      setLabForm({
+        patient: '',
+        testName: '',
+        resultImage: '',
+        resultImageName: '',
+        notes: '',
+        date: getTodayIsoDate(),
+      });
+    } catch (error) {
+      setFeedback(error.message);
+    }
   };
 
   const handleResultImageChange = async (event) => {

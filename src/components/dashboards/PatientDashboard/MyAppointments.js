@@ -1,34 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
-import {
-  getAppointmentsFromStorage,
-  saveAppointmentsToStorage,
-  subscribeToAppointments,
-} from '../../../utils/appointmentsStore';
-import {
-  getDoctorFeesFromStorage,
-  subscribeToDoctorFees,
-} from '../../../utils/doctorFeesStore';
-import {
-  getDoctorAvailabilityFromStorage,
-  subscribeToDoctorAvailability,
-} from '../../../utils/doctorAvailabilityStore';
+import { useApi } from '../../../hooks/useApi';
 import './MyAppointments.css';
 
 const emptyForm = {
-  doctor: 'Dr. John Smith',
-  specialty: 'Cardiology',
+  doctor: '',
+  specialty: '',
   date: '',
-  time: '09:00 AM',
+  time: '',
   reason: '',
   preFeeImage: '',
   preFeeImageName: '',
-};
-
-const doctorOptions = {
-  'Dr. John Smith': 'Cardiology',
-  'Dr. Sarah Johnson': 'Neurology',
-  'Dr. Michael Brown': 'Orthopedics',
 };
 
 const addDays = (dateString, days) => {
@@ -84,39 +66,78 @@ const compressImageToDataUrl = (file) =>
 
 const MyAppointments = () => {
   const { user } = useAuth();
-  const [allAppointments, setAllAppointments] = useState(() => getAppointmentsFromStorage());
-  const [doctorFees, setDoctorFees] = useState(() => getDoctorFeesFromStorage());
-  const [doctorAvailability, setDoctorAvailability] = useState(() => getDoctorAvailabilityFromStorage());
+  const { apiCall } = useApi();
+  const [allAppointments, setAllAppointments] = useState([]);
+  const [doctors, setDoctors] = useState([]);
   const [feedback, setFeedback] = useState('Fill out the form to book a new appointment, or reschedule an existing one.');
   const [bookingForm, setBookingForm] = useState(emptyForm);
 
-  useEffect(() => {
-    const unsubscribe = subscribeToAppointments(setAllAppointments);
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
-    const unsubscribe = subscribeToDoctorFees(setDoctorFees);
-    return unsubscribe;
-  }, []);
-
-  useEffect(() => {
-    const unsubscribe = subscribeToDoctorAvailability(setDoctorAvailability);
-    return unsubscribe;
-  }, []);
-
   const patientId = user?.userId || '201';
-  const patientName = patientId === '201' ? 'John Doe' : `Patient ${patientId}`;
+  const patientName = user?.profile?.name || (patientId === '201' ? 'John Doe' : `Patient ${patientId}`);
+
+  const loadDoctors = async () => {
+    try {
+      const doctorsResponse = await apiCall('/doctors');
+      setDoctors(doctorsResponse || []);
+
+      if (doctorsResponse?.length) {
+        const firstDoctor = doctorsResponse[0];
+        setBookingForm((current) => ({
+          ...current,
+          doctor: current.doctor || firstDoctor.name,
+          specialty: current.specialty || firstDoctor.specialty,
+          time: current.time || firstDoctor.availableTimes?.[0] || '',
+        }));
+      }
+    } catch (error) {
+      setFeedback(error.message);
+    }
+  };
+
+  const loadAppointments = async () => {
+    try {
+      const appointments = await apiCall(`/appointments?patientId=${patientId}`);
+      setAllAppointments(appointments || []);
+    } catch (error) {
+      setFeedback(error.message);
+    }
+  };
+
+  useEffect(() => {
+    loadDoctors();
+    loadAppointments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId]);
+
+  const doctorOptions = useMemo(() => {
+    return doctors.reduce((acc, doctor) => {
+      acc[doctor.name] = doctor.specialty;
+      return acc;
+    }, {});
+  }, [doctors]);
+
+  const doctorFees = useMemo(() => {
+    return doctors.reduce((acc, doctor) => {
+      acc[doctor.name] = doctor.fee;
+      return acc;
+    }, {});
+  }, [doctors]);
+
+  const doctorAvailability = useMemo(() => {
+    return doctors.reduce((acc, doctor) => {
+      acc[doctor.name] = {
+        days: doctor.availableDays || [],
+        times: doctor.availableTimes || [],
+      };
+      return acc;
+    }, {});
+  }, [doctors]);
 
   const appointments = useMemo(
-    () => allAppointments.filter((appointment) => String(appointment.patientId || '201') === String(patientId)),
+    () => allAppointments.filter((appointment) => String(appointment.patientId || '') === String(patientId)),
     [allAppointments, patientId]
   );
 
-  const nextId = useMemo(
-    () => allAppointments.reduce((maxId, appointment) => Math.max(maxId, appointment.id), 0) + 1,
-    [allAppointments]
-  );
   const selectedDoctorFee = doctorFees[bookingForm.doctor] || 0;
   const selectedDoctorSchedule = doctorAvailability[bookingForm.doctor] || { days: [], times: [] };
 
@@ -130,11 +151,7 @@ const MyAppointments = () => {
   }, [bookingForm.date, selectedDoctorSchedule.days]);
 
   const availableTimesForSelectedDate = useMemo(() => {
-    if (!bookingForm.date) {
-      return [];
-    }
-
-    if (!isSelectedDateAvailable) {
+    if (!bookingForm.date || !isSelectedDateAvailable) {
       return [];
     }
 
@@ -206,7 +223,7 @@ const MyAppointments = () => {
     }
   };
 
-  const handleBookAppointment = (e) => {
+  const handleBookAppointment = async (e) => {
     e.preventDefault();
 
     if (!isSelectedDateAvailable) {
@@ -219,73 +236,64 @@ const MyAppointments = () => {
       return;
     }
 
-    const newAppointment = {
-      id: nextId,
-      patientId,
-      patient: patientName,
-      doctor: bookingForm.doctor,
-      specialty: bookingForm.specialty,
-      date: bookingForm.date,
-      time: bookingForm.time,
-      reason: bookingForm.reason,
-      status: 'pending',
-      duration: '30min',
-      doctorFee: selectedDoctorFee,
-      preFeeImage: bookingForm.preFeeImage,
-      preFeeImageName: bookingForm.preFeeImageName,
-    };
+    const selectedDoctor = doctors.find((doctor) => doctor.name === bookingForm.doctor);
 
-    const updatedAppointments = [newAppointment, ...allAppointments];
-    const saveResult = saveAppointmentsToStorage(updatedAppointments);
+    try {
+      const created = await apiCall('/appointments', {
+        method: 'POST',
+        body: JSON.stringify({
+          patientId,
+          patient: patientName,
+          doctorId: selectedDoctor?.id,
+          doctor: bookingForm.doctor,
+          specialty: bookingForm.specialty,
+          date: bookingForm.date,
+          time: bookingForm.time,
+          reason: bookingForm.reason,
+          status: 'pending',
+          duration: '30min',
+          doctorFee: selectedDoctorFee,
+          preFeeImage: bookingForm.preFeeImage,
+          preFeeImageName: bookingForm.preFeeImageName,
+        }),
+      });
 
-    if (!saveResult.ok) {
-      setFeedback('Could not save this appointment because storage is full. Please use a smaller image.');
-      return;
+      setAllAppointments((current) => [created, ...current]);
+      setFeedback(`Appointment request sent to ${created.doctor} for ${created.date} at ${created.time}.`);
+      setBookingForm({
+        ...emptyForm,
+        doctor: bookingForm.doctor,
+        specialty: doctorOptions[bookingForm.doctor],
+        time: (doctorAvailability[bookingForm.doctor]?.times || [])[0] || '',
+      });
+    } catch (error) {
+      setFeedback(error.message);
     }
-
-    setAllAppointments(updatedAppointments);
-
-    setFeedback(
-      `Appointment request sent to ${newAppointment.doctor} for ${newAppointment.date} at ${newAppointment.time}.`
-    );
-    setBookingForm({
-      ...emptyForm,
-      doctor: bookingForm.doctor,
-      specialty: doctorOptions[bookingForm.doctor],
-    });
   };
 
-  const handleReschedule = (appointmentId) => {
-    let updatedAppointment = null;
+  const handleReschedule = async (appointmentId) => {
+    const target = allAppointments.find((appointment) => appointment.id === appointmentId);
 
-    const updatedAppointments = allAppointments.map((appointment) => {
-      if (appointment.id !== appointmentId) {
-        return appointment;
-      }
-
-      updatedAppointment = {
-        ...appointment,
-        date: addDays(appointment.date, 7),
-        time: appointment.time === '10:00 AM' ? '01:00 PM' : '03:00 PM',
-        status: 'pending',
-      };
-
-      return updatedAppointment;
-    });
-
-    const saveResult = saveAppointmentsToStorage(updatedAppointments);
-
-    if (!saveResult.ok) {
-      setFeedback('Could not reschedule right now because appointment storage is full.');
+    if (!target) {
       return;
     }
 
-    setAllAppointments(updatedAppointments);
+    const updatePayload = {
+      date: addDays(target.date, 7),
+      time: target.time === '10:00 AM' ? '01:00 PM' : '03:00 PM',
+      status: 'pending',
+    };
 
-    if (updatedAppointment) {
-      setFeedback(
-        `${updatedAppointment.doctor} appointment moved to ${updatedAppointment.date} at ${updatedAppointment.time}.`
-      );
+    try {
+      const updated = await apiCall(`/appointments/${appointmentId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(updatePayload),
+      });
+
+      setAllAppointments((current) => current.map((item) => (item.id === appointmentId ? updated : item)));
+      setFeedback(`${updated.doctor} appointment moved to ${updated.date} at ${updated.time}.`);
+    } catch (error) {
+      setFeedback(error.message);
     }
   };
 

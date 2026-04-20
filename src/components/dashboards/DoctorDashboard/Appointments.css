@@ -120,10 +120,28 @@
   margin-left: auto;
 }
 
-.detail-actions {
+.appointment-side {
+  margin-left: auto;
   display: flex;
-  gap: 0.75rem;
-  margin-top: 1rem;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.55rem;
+}
+
+.appointment-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.45rem;
+}
+
+.appointment-actions .btn-sm[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.appointment-actions .btn-sm {
+  width: 100%;
 }
 
 .availability-status {

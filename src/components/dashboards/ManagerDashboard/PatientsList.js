@@ -1,13 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useApi } from '../../../hooks/useApi';
 import './PatientsList.css';
-
-const initialPatientRoster = [
-  { id: 1, name: 'Alice Johnson', age: 28, dob: '1997-04-11', phone: '+1-234-567-8901', lastVisit: '2024-01-15', doctor: 'Dr. John Smith', notes: 'Follow-up for blood pressure review.' },
-  { id: 2, name: 'Bob Wilson', age: 45, dob: '1980-09-24', phone: '+1-234-567-8902', lastVisit: '2024-01-10', doctor: 'Dr. Sarah Johnson', notes: 'Monitoring diabetes medication response.' },
-  { id: 3, name: 'Carol Davis', age: 32, dob: '1993-02-07', phone: '+1-234-567-8903', lastVisit: '2024-01-12', doctor: 'Dr. Michael Brown', notes: 'Migraine care plan updated this week.' },
-  { id: 4, name: 'Daniel Green', age: 39, dob: '1986-06-30', phone: '+1-234-567-8910', lastVisit: '2024-01-09', doctor: 'Dr. Sarah Johnson', notes: 'Awaiting lab results before next consultation.' },
-  { id: 5, name: 'Emma White', age: 51, dob: '1974-01-15', phone: '+1-234-567-8911', lastVisit: '2024-01-05', doctor: 'Dr. John Smith', notes: 'Recovering well after cardiology review.' },
-];
 
 const emptyPatient = {
   name: '',
@@ -19,13 +12,31 @@ const emptyPatient = {
 };
 
 const PatientsList = () => {
-  const [patients, setPatients] = useState(initialPatientRoster);
+  const { apiCall } = useApi();
+  const [patients, setPatients] = useState([]);
+  const [doctors, setDoctors] = useState([]);
   const [showAll, setShowAll] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedPatient, setSelectedPatient] = useState(initialPatientRoster[0]);
+  const [selectedPatient, setSelectedPatient] = useState(null);
   const [patientForm, setPatientForm] = useState(emptyPatient);
   const [editingPatientId, setEditingPatientId] = useState(null);
   const [feedback, setFeedback] = useState('Manage patients, edit records, and remove entries when needed.');
+
+  const loadData = async () => {
+    try {
+      const [patientRows, doctorRows] = await Promise.all([apiCall('/patients'), apiCall('/doctors')]);
+      setPatients(patientRows || []);
+      setDoctors(doctorRows || []);
+      setSelectedPatient((patientRows || [])[0] || null);
+    } catch (error) {
+      setFeedback(error.message);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const nextPatientId = useMemo(
     () => patients.reduce((maxId, patient) => Math.max(maxId, patient.id), 0) + 1,
@@ -46,7 +57,7 @@ const PatientsList = () => {
 
     return scopedPatients.filter((patient) =>
       [patient.name, patient.phone, patient.doctor].some((value) =>
-        value.toLowerCase().includes(query)
+        String(value || '').toLowerCase().includes(query)
       )
     );
   }, [scopedPatients, searchTerm]);
@@ -77,7 +88,7 @@ const PatientsList = () => {
     setEditingPatientId(patient.id);
     setPatientForm({
       name: patient.name,
-      age: String(patient.age),
+      age: String(patient.age || ''),
       dob: patient.dob || '',
       phone: patient.phone,
       doctor: patient.doctor,
@@ -86,19 +97,25 @@ const PatientsList = () => {
     setFeedback(`Editing ${patient.name}. Update details and save changes.`);
   };
 
-  const handleDeletePatient = (patientId) => {
+  const handleDeletePatient = async (patientId) => {
     const patientToDelete = patients.find((patient) => patient.id === patientId);
-    const updatedPatients = patients.filter((patient) => patient.id !== patientId);
-    setPatients(updatedPatients);
-    setFeedback(`${patientToDelete?.name || 'Patient'} was removed from the list.`);
 
-    if (selectedPatient?.id === patientId) {
-      setSelectedPatient(updatedPatients[0] || null);
-    }
+    try {
+      await apiCall(`/patients/${patientId}`, { method: 'DELETE' });
+      const updatedPatients = patients.filter((patient) => patient.id !== patientId);
+      setPatients(updatedPatients);
+      setFeedback(`${patientToDelete?.name || 'Patient'} was removed from the list.`);
 
-    if (editingPatientId === patientId) {
-      setEditingPatientId(null);
-      setPatientForm(emptyPatient);
+      if (selectedPatient?.id === patientId) {
+        setSelectedPatient(updatedPatients[0] || null);
+      }
+
+      if (editingPatientId === patientId) {
+        setEditingPatientId(null);
+        setPatientForm(emptyPatient);
+      }
+    } catch (error) {
+      setFeedback(error.message);
     }
   };
 
@@ -108,33 +125,52 @@ const PatientsList = () => {
     setFeedback('Edit cancelled. Patient form reset.');
   };
 
-  const handleSavePatient = (event) => {
+  const handleSavePatient = async (event) => {
     event.preventDefault();
 
+    const selectedDoctor = doctors.find((doctor) => doctor.name === patientForm.doctor);
     const normalizedPatient = {
       ...patientForm,
       age: Number(patientForm.age),
       notes: patientForm.notes.trim(),
+      assignedDoctorId: selectedDoctor?.id || null,
+      email: editingPatientId ? (patients.find((item) => item.id === editingPatientId)?.email || undefined) : undefined,
     };
 
-    if (editingPatientId) {
-      const updatedPatients = patients.map((patient) =>
-        patient.id === editingPatientId ? { ...patient, ...normalizedPatient } : patient
-      );
-      setPatients(updatedPatients);
-      setFeedback(`${normalizedPatient.name} was updated successfully.`);
-      setSelectedPatient(
-        updatedPatients.find((patient) => patient.id === editingPatientId) || selectedPatient
-      );
-    } else {
-      const newPatient = { ...normalizedPatient, id: nextPatientId, lastVisit: 'N/A' };
-      setPatients((current) => [newPatient, ...current]);
-      setFeedback(`${newPatient.name} was added to patient records.`);
-      setSelectedPatient(newPatient);
-    }
+    try {
+      if (editingPatientId) {
+        const updated = await apiCall(`/patients/${editingPatientId}`, {
+          method: 'PUT',
+          body: JSON.stringify(normalizedPatient),
+        });
 
-    setEditingPatientId(null);
-    setPatientForm(emptyPatient);
+        const updatedPatients = patients.map((patient) =>
+          patient.id === editingPatientId ? updated : patient
+        );
+        setPatients(updatedPatients);
+        setFeedback(`${updated.name} was updated successfully.`);
+        setSelectedPatient(updated);
+      } else {
+        const created = await apiCall('/patients', {
+          method: 'POST',
+          body: JSON.stringify({
+            ...normalizedPatient,
+            email: `${normalizedPatient.name.toLowerCase().replace(/\s+/g, '.')}+${Date.now()}@patient.local`,
+            password: 'patient123',
+          }),
+        });
+
+        const withId = { ...created, id: created.id || nextPatientId, lastVisit: created.lastVisit || 'N/A' };
+        setPatients((current) => [withId, ...current]);
+        setFeedback(`${withId.name} was added to patient records.`);
+        setSelectedPatient(withId);
+      }
+
+      setEditingPatientId(null);
+      setPatientForm(emptyPatient);
+    } catch (error) {
+      setFeedback(error.message);
+    }
   };
 
   return (

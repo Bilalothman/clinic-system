@@ -1,74 +1,58 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
+import { useApi } from '../../../hooks/useApi';
 import './MyRecords.css';
 
-const LAB_RESULTS_STORAGE_KEY = 'doctorLabResults';
-const MEDICAL_RECORDS_STORAGE_KEY = 'doctorMedicalRecords';
 const defaultMedicalRecords = [
   { date: '2024-01-15', doctor: 'Dr. John Smith', diagnosis: 'Hypertension controlled', prescription: 'Amlodipine 5mg' },
   { date: '2024-01-10', doctor: 'Dr. Sarah Johnson', diagnosis: 'Routine checkup', prescription: 'None' },
 ];
 
-const getStoredLabResults = () => {
-  try {
-    const raw = localStorage.getItem(LAB_RESULTS_STORAGE_KEY);
-    if (!raw) {
-      return [];
-    }
-
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (error) {
-    return [];
-  }
-};
-
-const getStoredMedicalRecords = () => {
-  try {
-    const raw = localStorage.getItem(MEDICAL_RECORDS_STORAGE_KEY);
-    if (!raw) {
-      return [];
-    }
-
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (error) {
-    return [];
-  }
-};
-
-const normalize = (value) => String(value || '').trim().toLowerCase();
-
 const MyRecords = () => {
   const { user } = useAuth();
-  const patientName = user?.profile?.name || (user?.userId === '201' ? 'John Doe' : `Patient ${user?.userId || ''}`);
+  const { apiCall } = useApi();
+  const [records, setRecords] = useState(defaultMedicalRecords);
+  const [labResults, setLabResults] = useState([]);
 
-  const records = useMemo(() => {
-    const stored = getStoredMedicalRecords();
-    const mine = stored.filter((record) => normalize(record.patient) === normalize(patientName));
+  const patientId = user?.userId || '201';
 
-    if (!mine.length) {
-      return defaultMedicalRecords;
-    }
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [recordRows, labRows] = await Promise.all([
+          apiCall(`/medical-records?patientId=${patientId}`),
+          apiCall(`/lab-results?patientId=${patientId}`),
+        ]);
 
-    return mine.sort((a, b) => b.date.localeCompare(a.date));
-  }, [patientName]);
+        if (recordRows?.length) {
+          setRecords([...recordRows].sort((a, b) => b.date.localeCompare(a.date)));
+        } else {
+          setRecords(defaultMedicalRecords);
+        }
+
+        setLabResults((labRows || []).sort((a, b) => b.date.localeCompare(a.date)));
+      } catch (error) {
+        setRecords(defaultMedicalRecords);
+        setLabResults([]);
+      }
+    };
+
+    loadData();
+  }, [apiCall, patientId]);
 
   const myLabResults = useMemo(() => {
-    const allResults = getStoredLabResults();
-    const mine = allResults.filter((result) => normalize(result.patient) === normalize(patientName));
-    return mine.sort((a, b) => b.date.localeCompare(a.date));
-  }, [patientName]);
+    return [...labResults].sort((a, b) => b.date.localeCompare(a.date));
+  }, [labResults]);
 
   return (
     <div className="card fade-in-left">
       <div className="card-header">
         <h3>My Medical Records</h3>
       </div>
-      
+
       <div className="records-timeline">
         {records.map((record, index) => (
-          <div key={index} className="timeline-item">
+          <div key={record.id || index} className="timeline-item">
             <div className="timeline-date">{record.date}</div>
             <div className="timeline-content">
               <div className="record-header">

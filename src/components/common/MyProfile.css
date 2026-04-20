@@ -47,6 +47,53 @@
   border-top: 1px solid rgba(148, 163, 184, 0.25);
 }
 
+.doctor-profile-edit-panel {
+  margin-top: 0.4rem;
+}
+
+.doctor-profile-edit-panel h4 {
+  margin: 0 0 0.75rem;
+  color: #1e293b;
+}
+
+.doctor-profile-actions {
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.9rem;
+}
+
+.doctor-profile-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.8rem 1rem;
+}
+
+.doctor-profile-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.doctor-profile-field label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #475569;
+}
+
+.doctor-profile-field input {
+  padding: 0.65rem 0.8rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font: inherit;
+  color: #1e293b;
+  background: #fff;
+}
+
+.doctor-profile-field-wide {
+  grid-column: span 2;
+}
+
 .doctor-fee-panel h4 {
   margin: 0 0 0.75rem;
   color: #1e293b;
@@ -114,6 +161,10 @@
 
 @media (max-width: 768px) {
   .profile-item-wide {
+    grid-column: span 1;
+  }
+
+  .doctor-profile-field-wide {
     grid-column: span 1;
   }
 }

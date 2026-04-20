@@ -1,8 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  getAppointmentsFromStorage,
-  subscribeToAppointments,
-} from '../../../utils/appointmentsStore';
+import { useApi } from '../../../hooks/useApi';
 import './AppointmentsOverview.css';
 
 const getWeekdayFromDate = (dateString) => {
@@ -15,13 +12,22 @@ const getWeekdayFromDate = (dateString) => {
 };
 
 const AppointmentsOverview = () => {
-  const [appointments, setAppointments] = useState(() => getAppointmentsFromStorage());
+  const { apiCall } = useApi();
+  const [appointments, setAppointments] = useState([]);
   const [doctorFilter, setDoctorFilter] = useState('all');
 
   useEffect(() => {
-    const unsubscribe = subscribeToAppointments(setAppointments);
-    return unsubscribe;
-  }, []);
+    const loadAppointments = async () => {
+      try {
+        const rows = await apiCall('/appointments');
+        setAppointments(rows || []);
+      } catch (error) {
+        setAppointments([]);
+      }
+    };
+
+    loadAppointments();
+  }, [apiCall]);
 
   const doctorOptions = useMemo(() => {
     return ['all', ...Array.from(new Set(appointments.map((appointment) => appointment.doctor)))];

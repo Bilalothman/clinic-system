@@ -1,31 +1,30 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import LoadingSpinner from '../../common/LoadingSpinner';
-import {
-  getDoctorFeesFromStorage,
-  saveDoctorFeesToStorage,
-  subscribeToDoctorFees,
-} from '../../../utils/doctorFeesStore';
+import { useApi } from '../../../hooks/useApi';
 import './DoctorsManagement.css';
-
-const initialDoctors = [
-  { id: 1, name: 'Dr. John Smith', specialty: 'Cardiology', phone: '+1-234-567-8901', email: 'john.smith@doctor.com', password: 'doctor123', status: 'active' },
-  { id: 2, name: 'Dr. Sarah Johnson', specialty: 'Neurology', phone: '+1-234-567-8902', email: 'sarah.johnson@doctor.com', password: 'doctor123', status: 'active' },
-  { id: 3, name: 'Dr. Michael Brown', specialty: 'Orthopedics', phone: '+1-234-567-8903', email: 'michael.brown@doctor.com', password: 'doctor123', status: 'inactive' },
-];
 
 const emptyDoctor = { name: '', specialty: '', phone: '', email: '', password: '', fee: '' };
 
 const DoctorsManagement = () => {
-  const [doctors, setDoctors] = useState(initialDoctors);
-  const [doctorFees, setDoctorFees] = useState(() => getDoctorFeesFromStorage());
+  const { apiCall } = useApi();
+  const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(false);
   const [newDoctor, setNewDoctor] = useState(emptyDoctor);
   const [editingDoctorId, setEditingDoctorId] = useState(null);
-  const [feedback, setFeedback] = useState('Manage doctors, update records, or refresh the demo list.');
+  const [feedback, setFeedback] = useState('Manage doctors, update records, or refresh the list.');
 
-  React.useEffect(() => {
-    const unsubscribe = subscribeToDoctorFees(setDoctorFees);
-    return unsubscribe;
+  const loadDoctors = async () => {
+    try {
+      const rows = await apiCall('/doctors');
+      setDoctors(rows || []);
+    } catch (error) {
+      setFeedback(error.message);
+    }
+  };
+
+  useEffect(() => {
+    loadDoctors();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const nextDoctorId = useMemo(
@@ -37,12 +36,11 @@ const DoctorsManagement = () => {
     setNewDoctor((current) => ({ ...current, [field]: value }));
   };
 
-  const handleRefresh = () => {
-    setDoctors(initialDoctors);
+  const handleRefresh = async () => {
+    await loadDoctors();
     setNewDoctor(emptyDoctor);
     setEditingDoctorId(null);
-    setDoctorFees(getDoctorFeesFromStorage());
-    setFeedback('Doctor list refreshed to the default hospital roster.');
+    setFeedback('Doctor list refreshed.');
   };
 
   const handleEditDoctor = (doctor) => {
@@ -53,22 +51,21 @@ const DoctorsManagement = () => {
       phone: doctor.phone,
       email: doctor.email,
       password: doctor.password,
-      fee: String(doctorFees[doctor.name] || ''),
+      fee: String(doctor.fee || ''),
     });
     setFeedback(`Editing ${doctor.name}. Update the form and save your changes.`);
   };
 
-  const handleDeleteDoctor = (doctorId) => {
+  const handleDeleteDoctor = async (doctorId) => {
     const doctorToDelete = doctors.find((doctor) => doctor.id === doctorId);
-    setDoctors((current) => current.filter((doctor) => doctor.id !== doctorId));
 
-    if (doctorToDelete?.name) {
-      const updatedFees = { ...doctorFees };
-      delete updatedFees[doctorToDelete.name];
-      saveDoctorFeesToStorage(updatedFees);
+    try {
+      await apiCall(`/doctors/${doctorId}`, { method: 'DELETE' });
+      setDoctors((current) => current.filter((doctor) => doctor.id !== doctorId));
+      setFeedback(`${doctorToDelete?.name || 'Doctor'} was removed from the roster.`);
+    } catch (error) {
+      setFeedback(error.message);
     }
-
-    setFeedback(`${doctorToDelete?.name || 'Doctor'} was removed from the roster.`);
 
     if (editingDoctorId === doctorId) {
       setEditingDoctorId(null);
@@ -82,49 +79,44 @@ const DoctorsManagement = () => {
     setFeedback('Edit cancelled. The add doctor form is ready again.');
   };
 
-  const handleAddDoctor = (e) => {
+  const handleAddDoctor = async (e) => {
     e.preventDefault();
     setLoading(true);
 
-    setTimeout(() => {
-      const parsedFee = Number(newDoctor.fee);
-      const normalizedFee = Number.isFinite(parsedFee) && parsedFee > 0 ? Math.round(parsedFee) : 0;
+    const payload = {
+      ...newDoctor,
+      fee: Number(newDoctor.fee || 0),
+    };
 
+    try {
       if (editingDoctorId) {
-        const editedDoctor = doctors.find((doctor) => doctor.id === editingDoctorId);
+        const updated = await apiCall(`/doctors/${editingDoctorId}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        });
 
-        setDoctors((current) =>
-          current.map((doctor) =>
-            doctor.id === editingDoctorId ? { ...doctor, ...newDoctor } : doctor
-          )
-        );
-
-        const updatedFees = { ...doctorFees };
-
-        if (editedDoctor?.name && editedDoctor.name !== newDoctor.name) {
-          delete updatedFees[editedDoctor.name];
-        }
-
-        updatedFees[newDoctor.name] = normalizedFee;
-        saveDoctorFeesToStorage(updatedFees);
-
-        setFeedback(`${newDoctor.name} was updated successfully.`);
+        setDoctors((current) => current.map((doctor) => (doctor.id === editingDoctorId ? updated : doctor)));
+        setFeedback(`${updated.name} was updated successfully.`);
       } else {
+        const created = await apiCall('/doctors', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+
         setDoctors((current) => [
           ...current,
-          { ...newDoctor, id: nextDoctorId, status: 'active' },
+          { ...created, id: created.id || nextDoctorId },
         ]);
-        saveDoctorFeesToStorage({
-          ...doctorFees,
-          [newDoctor.name]: normalizedFee,
-        });
-        setFeedback(`${newDoctor.name} was added to the doctor roster.`);
+        setFeedback(`${payload.name} was added to the doctor roster.`);
       }
 
       setNewDoctor(emptyDoctor);
       setEditingDoctorId(null);
+    } catch (error) {
+      setFeedback(error.message);
+    } finally {
       setLoading(false);
-    }, 900);
+    }
   };
 
   return (
@@ -178,7 +170,7 @@ const DoctorsManagement = () => {
                 <td>{doctor.name}</td>
                 <td><span className="specialty-badge">{doctor.specialty}</span></td>
                 <td>{doctor.phone}</td>
-                <td><span className="fee-badge">${doctorFees[doctor.name] || 0}</span></td>
+                <td><span className="fee-badge">${doctor.fee || 0}</span></td>
                 <td><span className={`status-badge ${doctor.status}`}>{doctor.status}</span></td>
                 <td>
                   <button type="button" className="btn-secondary btn-sm" onClick={() => handleEditDoctor(doctor)}>

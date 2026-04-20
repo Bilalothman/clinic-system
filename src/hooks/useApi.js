@@ -1,6 +1,7 @@
 export const useApi = () => {
   const apiCall = async (endpoint, options = {}) => {
     const token = localStorage.getItem('token');
+    const baseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api';
     
     const config = {
       headers: {
@@ -12,8 +13,17 @@ export const useApi = () => {
     };
 
     try {
-      const response = await fetch(`http://localhost:3001/api${endpoint}`, config);
-      return await response.json();
+      const response = await fetch(`${baseUrl}${endpoint}`, config);
+      const contentType = response.headers.get('content-type') || '';
+      const isJsonResponse = contentType.includes('application/json');
+      const data = isJsonResponse ? await response.json().catch(() => ({})) : {};
+
+      if (!response.ok) {
+        const message = data?.message || `Request failed (${response.status} ${response.statusText}).`;
+        throw new Error(message);
+      }
+
+      return data;
     } catch (error) {
       throw new Error(error.message);
     }

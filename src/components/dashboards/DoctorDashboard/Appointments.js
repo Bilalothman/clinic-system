@@ -1,14 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
-import {
-  getAppointmentsFromStorage,
-  saveAppointmentsToStorage,
-  subscribeToAppointments,
-} from '../../../utils/appointmentsStore';
-import {
-  getDoctorAvailabilityFromStorage,
-  subscribeToDoctorAvailability,
-} from '../../../utils/doctorAvailabilityStore';
+import { useApi } from '../../../hooks/useApi';
+import { DOCTOR_TIME_SLOTS } from '../../../constants/timeSlots';
 import './Appointments.css';
 
 const getLocalIsoDate = () => {
@@ -28,42 +21,57 @@ const getWeekdayFromDate = (dateString) => {
   return date.toLocaleDateString('en-US', { weekday: 'long' });
 };
 
-const Appointments = () => {
+const Appointments = ({ showPendingOnly = false }) => {
   const { user } = useAuth();
-  const [appointments, setAppointments] = useState(() => getAppointmentsFromStorage());
-  const [doctorAvailability, setDoctorAvailability] = useState(() => getDoctorAvailabilityFromStorage());
+  const { apiCall } = useApi();
+  const [appointments, setAppointments] = useState([]);
+  const [doctorProfile, setDoctorProfile] = useState(null);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
-  const [filterDate, setFilterDate] = useState(() => user?.loginDate || getLocalIsoDate());
+  const [filterDate, setFilterDate] = useState('');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [newAppointmentForm, setNewAppointmentForm] = useState({
     patientId: '',
     patient: '',
     date: user?.loginDate || getLocalIsoDate(),
-    time: '09:00 AM',
+    time: DOCTOR_TIME_SLOTS[0],
     duration: '30min',
     specialty: 'General',
     reason: '',
     status: 'confirmed',
   });
 
-  useEffect(() => {
-    const unsubscribe = subscribeToAppointments(setAppointments);
-    return unsubscribe;
-  }, []);
+  const loadData = async () => {
+    try {
+      const [doctorRows, appointmentRows] = await Promise.all([
+        apiCall('/doctors'),
+        apiCall(`/appointments?doctorId=${user?.userId || ''}`),
+      ]);
+
+      const me = (doctorRows || []).find((doctor) => String(doctor.id) === String(user?.userId));
+      setDoctorProfile(me || null);
+      setAppointments(appointmentRows || []);
+    } catch (error) {
+      setFeedback(error.message);
+    }
+  };
 
   useEffect(() => {
-    const unsubscribe = subscribeToDoctorAvailability(setDoctorAvailability);
-    return unsubscribe;
-  }, []);
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.userId]);
 
   const filteredAppointments = useMemo(() => {
+    const scopedAppointments = showPendingOnly
+      ? appointments.filter((appointment) => appointment.status === 'pending')
+      : appointments;
+
     if (!filterDate) {
-      return appointments;
+      return scopedAppointments;
     }
 
-    return appointments.filter((appointment) => appointment.date === filterDate);
-  }, [appointments, filterDate]);
+    return scopedAppointments.filter((appointment) => appointment.date === filterDate || appointment.status === 'pending');
+  }, [appointments, filterDate, showPendingOnly]);
 
   useEffect(() => {
     if (!filteredAppointments.length) {
@@ -71,10 +79,7 @@ const Appointments = () => {
       return;
     }
 
-    if (
-      !selectedAppointment ||
-      !filteredAppointments.some((appointment) => appointment.id === selectedAppointment.id)
-    ) {
+    if (!selectedAppointment || !filteredAppointments.some((appointment) => appointment.id === selectedAppointment.id)) {
       setSelectedAppointment(filteredAppointments[0]);
       return;
     }
@@ -84,17 +89,12 @@ const Appointments = () => {
     );
   }, [filteredAppointments, selectedAppointment]);
 
-  const nextId = useMemo(
-    () => appointments.reduce((maxId, appointment) => Math.max(maxId, appointment.id), 0) + 1,
-    [appointments]
-  );
-
   const getAvailabilityState = (appointment) => {
-    const doctorName = appointment?.doctor || user?.profile?.name || 'Dr. John Smith';
-    const schedule = doctorAvailability[doctorName] || { days: [], times: [] };
+    const days = doctorProfile?.availableDays || [];
+    const times = doctorProfile?.availableTimes || [];
     const weekday = getWeekdayFromDate(appointment?.date);
-    const inDay = schedule.days.includes(weekday);
-    const inTime = schedule.times.includes(appointment?.time);
+    const inDay = days.includes(weekday);
+    const inTime = times.includes(appointment?.time);
 
     return {
       isAvailable: inDay && inTime,
@@ -116,74 +116,63 @@ const Appointments = () => {
       patientId: '',
       patient: '',
       date: filterDate || user?.loginDate || getLocalIsoDate(),
-      time: '09:00 AM',
+      time: DOCTOR_TIME_SLOTS[0],
       duration: '30min',
-      specialty: 'General',
+      specialty: doctorProfile?.specialty || 'General',
       reason: '',
       status: 'confirmed',
     });
   };
 
-  const handleNewAppointment = (event) => {
+  const handleNewAppointment = async (event) => {
     event.preventDefault();
 
-    const doctorName = user?.profile?.name || 'Dr. Smith';
-    const patientName = newAppointmentForm.patient.trim();
-    const patientId = newAppointmentForm.patientId.trim() || String(1000 + nextId);
+    try {
+      const created = await apiCall('/appointments', {
+        method: 'POST',
+        body: JSON.stringify({
+          patientId: newAppointmentForm.patientId.trim() || null,
+          patient: newAppointmentForm.patient.trim(),
+          doctorId: Number(user?.userId),
+          specialty: newAppointmentForm.specialty,
+          date: newAppointmentForm.date,
+          time: newAppointmentForm.time,
+          status: newAppointmentForm.status,
+          duration: newAppointmentForm.duration,
+          reason: newAppointmentForm.reason.trim(),
+        }),
+      });
 
-    const newAppointment = {
-      id: nextId,
-      patientId,
-      patient: patientName,
-      doctor: doctorName,
-      specialty: newAppointmentForm.specialty,
-      date: newAppointmentForm.date,
-      time: newAppointmentForm.time,
-      status: newAppointmentForm.status,
-      duration: newAppointmentForm.duration,
-      reason: newAppointmentForm.reason.trim(),
-      preFeeImage: '',
-      preFeeImageName: '',
-    };
-
-    const updatedAppointments = [newAppointment, ...appointments];
-    const saveResult = saveAppointmentsToStorage(updatedAppointments);
-
-    if (!saveResult.ok) {
-      setFeedback(saveResult.message);
-      return;
+      setAppointments((current) => [created, ...current]);
+      setSelectedAppointment(created);
+      setFilterDate(created.date);
+      setShowCreateForm(false);
+      resetCreateForm();
+      setFeedback(`Appointment added for ${created.patient} on ${created.date} at ${created.time}.`);
+    } catch (error) {
+      setFeedback(error.message);
     }
-
-    setAppointments(updatedAppointments);
-    setSelectedAppointment(newAppointment);
-    setFilterDate(newAppointment.date);
-    setShowCreateForm(false);
-    resetCreateForm();
-    setFeedback(`Appointment added for ${newAppointment.patient} on ${newAppointment.date} at ${newAppointment.time}.`);
   };
 
-  const handleStatusChange = (appointmentId, status) => {
-    let updatedSelected = null;
-
-    const updatedAppointments = appointments.map((appointment) => {
-      if (appointment.id !== appointmentId) {
-        return appointment;
-      }
-
-      updatedSelected = { ...appointment, status };
-      return updatedSelected;
-    });
-
-    const saveResult = saveAppointmentsToStorage(updatedAppointments);
-
-    if (!saveResult.ok) {
-      setFeedback(saveResult.message);
+  const handleStatusChange = async (appointmentId, status) => {
+    const current = appointments.find((appointment) => appointment.id === appointmentId);
+    if (current && (current.status === 'confirmed' || current.status === 'cancelled')) {
+      setFeedback(`This appointment is already ${current.status}. Decision is locked.`);
       return;
     }
 
-    setAppointments(updatedAppointments);
-    setSelectedAppointment(updatedSelected || selectedAppointment);
-    setFeedback(`Appointment status updated to ${status}.`);
+    try {
+      const updated = await apiCall(`/appointments/${appointmentId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      });
+
+      setAppointments((current) => current.map((appointment) => (appointment.id === appointmentId ? updated : appointment)));
+      setSelectedAppointment(updated);
+      setFeedback(`Appointment status updated to ${status}.`);
+    } catch (error) {
+      setFeedback(error.message);
+    }
   };
 
   return (
@@ -239,11 +228,11 @@ const Appointments = () => {
                 value={newAppointmentForm.time}
                 onChange={(e) => handleFormChange('time', e.target.value)}
               >
-                <option value="09:00 AM">09:00 AM</option>
-                <option value="10:30 AM">10:30 AM</option>
-                <option value="01:00 PM">01:00 PM</option>
-                <option value="03:00 PM">03:00 PM</option>
-                <option value="04:30 PM">04:30 PM</option>
+                {DOCTOR_TIME_SLOTS.map((timeSlot) => (
+                  <option key={timeSlot} value={timeSlot}>
+                    {timeSlot}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -346,8 +335,36 @@ const Appointments = () => {
                 {appointment.date} ({getWeekdayFromDate(appointment.date)}) | {appointment.specialty}
               </div>
             </div>
-            <div className="appointment-status">
+            <div className="appointment-side">
               <span className={`status-badge ${appointment.status}`}>{appointment.status}</span>
+              <div className="appointment-actions">
+                <button
+                  type="button"
+                  className="btn-primary btn-sm"
+                  disabled={appointment.status !== 'pending'}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (appointment.status === 'pending') {
+                      handleStatusChange(appointment.id, 'confirmed');
+                    }
+                  }}
+                >
+                  Accept
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary btn-sm"
+                  disabled={appointment.status !== 'pending'}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (appointment.status === 'pending') {
+                      handleStatusChange(appointment.id, 'cancelled');
+                    }
+                  }}
+                >
+                  Reject
+                </button>
+              </div>
             </div>
           </div>
         ))}
@@ -374,24 +391,13 @@ const Appointments = () => {
             {getAvailabilityState(selectedAppointment).text}
           </div>
 
-          {selectedAppointment.status === 'pending' && (
-            <div className="detail-actions">
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={() => handleStatusChange(selectedAppointment.id, 'confirmed')}
-              >
-                Accept Appointment
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => handleStatusChange(selectedAppointment.id, 'cancelled')}
-              >
-                Reject Appointment
-              </button>
-            </div>
-          )}
+          <div className="action-feedback">
+            {selectedAppointment.status === 'pending'
+              ? 'Use the Accept/Reject buttons on this appointment card.'
+              : selectedAppointment.status === 'confirmed'
+                ? 'Appointment accepted. Decision is locked.'
+                : 'Appointment rejected. Decision is locked.'}
+          </div>
 
           {selectedAppointment.preFeeImage && (
             <div className="pre-fee-preview">

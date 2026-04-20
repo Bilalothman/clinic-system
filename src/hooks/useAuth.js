@@ -89,15 +89,29 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
+  const updateProfile = useCallback((profile = {}) => {
+    const current = getStoredUser();
+    if (!current) {
+      return;
+    }
+
+    localStorage.setItem(ACCOUNT_PROFILE_KEY, JSON.stringify(profile || {}));
+    setUser({
+      ...current,
+      profile: profile || {},
+    });
+  }, []);
+
   const value = useMemo(
     () => ({
       user,
       loading,
       login,
       logout,
+      updateProfile,
       getUserFromStorage: getStoredUser,
     }),
-    [user, loading, login, logout]
+    [user, loading, login, logout, updateProfile]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

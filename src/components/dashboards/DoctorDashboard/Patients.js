@@ -1,15 +1,27 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useApi } from '../../../hooks/useApi';
 import './Patients.css';
 
-const patientList = [
-  { id: 1, name: 'Alice Johnson', condition: 'Hypertension', nextVisit: '2024-02-01', notes: 'Blood pressure has improved after medication adjustment.' },
-  { id: 2, name: 'Bob Wilson', condition: 'Diabetes Type 2', nextVisit: '2024-01-25', notes: 'Needs updated fasting glucose numbers before the next visit.' },
-  { id: 3, name: 'Carol Davis', condition: 'Migraine', nextVisit: '2024-02-05', notes: 'Tracking trigger patterns and response to treatment.' },
-];
-
 const Patients = () => {
+  const { apiCall } = useApi();
+  const [patientList, setPatientList] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedPatient, setSelectedPatient] = useState(patientList[0]);
+  const [selectedPatient, setSelectedPatient] = useState(null);
+
+  useEffect(() => {
+    const loadPatients = async () => {
+      try {
+        const rows = await apiCall('/patients');
+        setPatientList(rows || []);
+        setSelectedPatient((rows || [])[0] || null);
+      } catch (error) {
+        setPatientList([]);
+        setSelectedPatient(null);
+      }
+    };
+
+    loadPatients();
+  }, [apiCall]);
 
   const filteredPatients = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -20,10 +32,10 @@ const Patients = () => {
 
     return patientList.filter((patient) =>
       [patient.name, patient.condition, patient.nextVisit].some((value) =>
-        value.toLowerCase().includes(query)
+        String(value || '').toLowerCase().includes(query)
       )
     );
-  }, [searchTerm]);
+  }, [patientList, searchTerm]);
 
   useEffect(() => {
     if (!filteredPatients.length) {
@@ -39,7 +51,7 @@ const Patients = () => {
   return (
     <div className="card fade-in-left">
       <div className="card-header">
-        <h3>Active Patients</h3>
+        <h3>All Patients</h3>
       </div>
       <input
         type="search"

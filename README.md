@@ -14,6 +14,15 @@ Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
 The page will reload when you make changes.\
 You may also see any lint errors in the console.
 
+### `npm run start:api`
+
+Runs the backend API on [http://localhost:3001](http://localhost:3001).
+
+Before running it:
+1. Import `database/clinic_system.sql` in phpMyAdmin.
+2. Copy `.env.example` to `.env` and set your MySQL credentials.
+3. Install dependencies with `npm install`.
+
 ### `npm test`
 
 Launches the test runner in the interactive watch mode.\
