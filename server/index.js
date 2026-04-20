@@ -77,6 +77,26 @@ const parseDuration = (value) => {
   return Math.max(1, Number(matched[0]));
 };
 
+const hasConfirmedAppointment = async ({ doctorId, date, time, excludeAppointmentId = null }) => {
+  const params = [Number(doctorId), date, time];
+  let sql = `
+    SELECT appointment_id
+    FROM appointment
+    WHERE doctor_id = ?
+      AND appointment_date = ?
+      AND appointment_time = ?
+      AND status = 'confirmed'`;
+
+  if (excludeAppointmentId !== null && excludeAppointmentId !== undefined) {
+    sql += ' AND appointment_id <> ?';
+    params.push(Number(excludeAppointmentId));
+  }
+
+  sql += ' LIMIT 1';
+  const rows = await query(sql, params);
+  return Boolean(rows[0]);
+};
+
 const formatDoctor = (row) => ({
   id: row.doctor_id,
   name: row.full_name,
@@ -143,6 +163,11 @@ const passwordMatches = async (plain, stored) => {
   } catch (error) {
     return false;
   }
+};
+
+const isStrongPatientPassword = (value) => {
+  const password = String(value || '');
+  return /[A-Z]/.test(password) && /\d/.test(password) && /[^A-Za-z0-9]/.test(password);
 };
 
 const signToken = (role, userId) => jwt.sign(
@@ -294,6 +319,13 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
 
   if (!name || !email || !password || !phone || !address || !dob || !gender) {
     res.status(400).json({ message: 'All registration fields are required.' });
+    return;
+  }
+
+  if (!isStrongPatientPassword(password)) {
+    res.status(400).json({
+      message: 'Password must include at least one uppercase letter, one number, and one symbol.',
+    });
     return;
   }
 
@@ -746,6 +778,17 @@ app.post('/api/appointments', requireAuth, asyncHandler(async (req, res) => {
     return;
   }
 
+  const isSlotTaken = await hasConfirmedAppointment({
+    doctorId: resolvedDoctorId,
+    date,
+    time,
+  });
+
+  if (isSlotTaken) {
+    res.status(409).json({ message: 'This time slot is already confirmed for another appointment.' });
+    return;
+  }
+
   const doctorRow = await doctorById(resolvedDoctorId);
   if (!doctorRow) {
     res.status(404).json({ message: 'Doctor not found.' });
@@ -816,6 +859,9 @@ app.patch('/api/appointments/:id', requireAuth, asyncHandler(async (req, res) =>
   }
 
   const updates = req.body || {};
+  const nextDate = updates.date ?? existing.appointment_date;
+  const nextTime = updates.time ?? existing.appointment_time;
+  const nextStatus = updates.status ?? existing.status;
 
   if (
     updates.status &&
@@ -826,6 +872,22 @@ app.patch('/api/appointments/:id', requireAuth, asyncHandler(async (req, res) =>
       message: `Appointment is already ${existing.status}. Status cannot be changed anymore.`,
     });
     return;
+  }
+
+  if (nextStatus === 'confirmed') {
+    const isSlotTaken = await hasConfirmedAppointment({
+      doctorId: existing.doctor_id,
+      date: nextDate,
+      time: nextTime,
+      excludeAppointmentId: appointmentId,
+    });
+
+    if (isSlotTaken) {
+      res.status(409).json({
+        message: 'This time slot is already confirmed for another appointment.',
+      });
+      return;
+    }
   }
 
   await query(
@@ -844,6 +906,36 @@ app.patch('/api/appointments/:id', requireAuth, asyncHandler(async (req, res) =>
       appointmentId,
     ]
   );
+
+  if (nextStatus === 'confirmed') {
+    const pendingSameSlot = await query(
+      `SELECT appointment_id
+       FROM appointment
+       WHERE doctor_id = ?
+         AND appointment_date = ?
+         AND appointment_time = ?
+         AND status = 'pending'
+         AND appointment_id <> ?`,
+      [existing.doctor_id, nextDate, nextTime, appointmentId]
+    );
+
+    const pendingIds = pendingSameSlot.map((row) => Number(row.appointment_id)).filter(Number.isFinite);
+    if (pendingIds.length) {
+      const placeholders = pendingIds.map(() => '?').join(', ');
+      await query(
+        `UPDATE appointment
+         SET status = 'cancelled'
+         WHERE appointment_id IN (${placeholders})`,
+        pendingIds
+      );
+      await query(
+        `UPDATE bills
+         SET bill_status = 'cancelled'
+         WHERE appointment_id IN (${placeholders})`,
+        pendingIds
+      );
+    }
+  }
 
   if (updates.status) {
     const billStatus = updates.status === 'cancelled' ? 'cancelled' : updates.status === 'confirmed' ? 'paid' : 'unpaid';

@@ -46,11 +46,6 @@ const compressImageToDataUrl = (file) =>
     reader.readAsDataURL(file);
   });
 
-const defaultRecords = [
-  { patient: 'Alice Johnson', date: '2024-01-15', diagnosis: 'Hypertension controlled' },
-  { patient: 'Bob Wilson', date: '2024-01-10', diagnosis: 'Blood sugar stable' },
-];
-
 const MedicalRecords = () => {
   const { user } = useAuth();
   const { apiCall } = useApi();
@@ -85,7 +80,7 @@ const MedicalRecords = () => {
         apiCall('/patients'),
       ]);
 
-      setMedicalRecords(recordsRows?.length ? recordsRows : defaultRecords);
+      setMedicalRecords(recordsRows || []);
       setLabResults(labsRows || []);
       setAllPatients(patientRows || []);
 
@@ -95,6 +90,9 @@ const MedicalRecords = () => {
     } catch (error) {
       setFeedback(error.message);
       setRecordFeedback(error.message);
+      setMedicalRecords([]);
+      setLabResults([]);
+      setAllPatients([]);
     }
   };
 

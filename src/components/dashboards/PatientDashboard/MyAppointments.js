@@ -13,12 +13,6 @@ const emptyForm = {
   preFeeImageName: '',
 };
 
-const addDays = (dateString, days) => {
-  const date = new Date(dateString);
-  date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
-};
-
 const getWeekdayFromDate = (dateString) => {
   if (!dateString) {
     return '';
@@ -68,6 +62,7 @@ const MyAppointments = () => {
   const { user } = useAuth();
   const { apiCall } = useApi();
   const [allAppointments, setAllAppointments] = useState([]);
+  const [selectedDoctorAppointments, setSelectedDoctorAppointments] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [feedback, setFeedback] = useState('Fill out the form to book a new appointment, or reschedule an existing one.');
   const [bookingForm, setBookingForm] = useState(emptyForm);
@@ -143,8 +138,41 @@ const MyAppointments = () => {
     [allAppointments, patientId]
   );
 
+  const selectedDoctor = useMemo(
+    () => doctors.find((doctor) => doctor.name === bookingForm.doctor) || null,
+    [doctors, bookingForm.doctor]
+  );
+
   const selectedDoctorFee = doctorFees[bookingForm.doctor] || 0;
   const selectedDoctorSchedule = doctorAvailability[bookingForm.doctor] || { days: [], times: [] };
+
+  useEffect(() => {
+    const loadSelectedDoctorAppointments = async () => {
+      if (!selectedDoctor?.id || !bookingForm.date) {
+        setSelectedDoctorAppointments([]);
+        return;
+      }
+
+      try {
+        const rows = await apiCall(`/appointments?doctorId=${selectedDoctor.id}`);
+        setSelectedDoctorAppointments(rows || []);
+      } catch (_error) {
+        setSelectedDoctorAppointments([]);
+      }
+    };
+
+    loadSelectedDoctorAppointments();
+  }, [apiCall, bookingForm.date, selectedDoctor?.id]);
+
+  const confirmedBookedTimes = useMemo(() => {
+    if (!bookingForm.date) {
+      return [];
+    }
+
+    return selectedDoctorAppointments
+      .filter((appointment) => appointment.date === bookingForm.date && appointment.status === 'confirmed')
+      .map((appointment) => appointment.time);
+  }, [bookingForm.date, selectedDoctorAppointments]);
 
   const isSelectedDateAvailable = useMemo(() => {
     if (!bookingForm.date) {
@@ -160,8 +188,21 @@ const MyAppointments = () => {
       return [];
     }
 
-    return selectedDoctorSchedule.times || [];
-  }, [bookingForm.date, isSelectedDateAvailable, selectedDoctorSchedule.times]);
+    return (selectedDoctorSchedule.times || []).filter((timeOption) => !confirmedBookedTimes.includes(timeOption));
+  }, [bookingForm.date, confirmedBookedTimes, isSelectedDateAvailable, selectedDoctorSchedule.times]);
+
+  useEffect(() => {
+    if (!bookingForm.date) {
+      return;
+    }
+
+    if (!availableTimesForSelectedDate.includes(bookingForm.time)) {
+      setBookingForm((current) => ({
+        ...current,
+        time: availableTimesForSelectedDate[0] || '',
+      }));
+    }
+  }, [availableTimesForSelectedDate, bookingForm.date, bookingForm.time]);
 
   const handleDoctorChange = (doctor) => {
     const doctorSchedule = doctorAvailability[doctor] || { days: [], times: [] };
@@ -276,32 +317,6 @@ const MyAppointments = () => {
     }
   };
 
-  const handleReschedule = async (appointmentId) => {
-    const target = allAppointments.find((appointment) => appointment.id === appointmentId);
-
-    if (!target) {
-      return;
-    }
-
-    const updatePayload = {
-      date: addDays(target.date, 7),
-      time: target.time === '10:00 AM' ? '01:00 PM' : '03:00 PM',
-      status: 'pending',
-    };
-
-    try {
-      const updated = await apiCall(`/appointments/${appointmentId}`, {
-        method: 'PATCH',
-        body: JSON.stringify(updatePayload),
-      });
-
-      setAllAppointments((current) => current.map((item) => (item.id === appointmentId ? updated : item)));
-      setFeedback(`${updated.doctor} appointment moved to ${updated.date} at ${updated.time}.`);
-    } catch (error) {
-      setFeedback(error.message);
-    }
-  };
-
   return (
     <div className="card fade-in-up">
       <div className="card-header">
@@ -411,9 +426,6 @@ const MyAppointments = () => {
             </div>
             <p className="appointment-reason">{appointment.reason}</p>
             {appointment.preFeeImage && <div className="attachment-note">Pre-fee image attached</div>}
-            <button type="button" className="btn-secondary" onClick={() => handleReschedule(appointment.id)}>
-              Reschedule
-            </button>
           </div>
         ))}
       </div>

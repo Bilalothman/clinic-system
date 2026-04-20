@@ -13,6 +13,20 @@ const Login = () => {
   const { login } = useAuth();
   const { apiCall } = useApi();
 
+  const redirectByRole = (role) => {
+    if (role === 'manager') {
+      navigate('/manager');
+      return;
+    }
+
+    if (role === 'doctor') {
+      navigate('/doctor');
+      return;
+    }
+
+    navigate('/patient');
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -25,18 +39,7 @@ const Login = () => {
       });
 
       login(result.role, result.userId, result.token, result.profile || {});
-
-      if (result.role === 'manager') {
-        navigate('/manager');
-        return;
-      }
-
-      if (result.role === 'doctor') {
-        navigate('/doctor');
-        return;
-      }
-
-      navigate('/patient');
+      redirectByRole(result.role);
     } catch (apiError) {
       setError(apiError.message);
     } finally {

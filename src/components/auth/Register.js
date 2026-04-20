@@ -6,6 +6,12 @@ import LoadingSpinner from '../common/LoadingSpinner';
 import '../auth/Login.css';
 import '../auth/Register.css';
 
+const isStrongPassword = (value) => (
+  /[A-Z]/.test(String(value || '')) &&
+  /\d/.test(String(value || '')) &&
+  /[^A-Za-z0-9]/.test(String(value || ''))
+);
+
 const Register = () => {
   const [formData, setFormData] = useState({
     name: '',
@@ -26,6 +32,12 @@ const Register = () => {
     e.preventDefault();
     setLoading(true);
     setError('');
+
+    if (!isStrongPassword(formData.password)) {
+      setError('Password must include at least one uppercase letter, one number, and one symbol.');
+      setLoading(false);
+      return;
+    }
 
     try {
       const result = await apiCall('/auth/register', {
@@ -132,6 +144,9 @@ const Register = () => {
                 required
                 placeholder="Create a strong password"
               />
+              <div className="password-hint">
+                Must include: 1 capital letter, 1 number, and 1 symbol.
+              </div>
             </div>
           </div>
 

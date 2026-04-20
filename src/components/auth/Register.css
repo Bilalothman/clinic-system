@@ -27,6 +27,12 @@
   box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
 }
 
+.password-hint {
+  margin-top: 0.45rem;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
 @media (max-width: 768px) {
   .auth-form .form-row {
     grid-template-columns: 1fr;
