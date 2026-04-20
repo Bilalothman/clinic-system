@@ -38,7 +38,7 @@ const Login = () => {
 
       navigate('/patient');
     } catch (apiError) {
-      setError(`${apiError.message}\n\nDemo accounts:\n- manager@gmail.com / 1234\n- doctor@doctor.com / doctor123\n- patient@patient.com / patient123`);
+      setError(apiError.message);
     } finally {
       setLoading(false);
     }
@@ -62,7 +62,7 @@ const Login = () => {
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               required
-              placeholder="manager@gmail.com"
+              placeholder="Enter your email"
             />
           </div>
           <div className="form-group">
@@ -82,12 +82,6 @@ const Login = () => {
 
         <div className="auth-footer">
           <p>Do not have an account? <a href="/register">Register as Patient</a></p>
-          <div className="demo-info glass">
-            <strong>Quick Demo Access:</strong><br />
-            <code>manager@gmail.com</code> / <code>1234</code><br />
-            <code>doctor@doctor.com</code> / <code>doctor123</code><br />
-            <code>patient@patient.com</code> / <code>patient123</code>
-          </div>
         </div>
       </div>
     </div>

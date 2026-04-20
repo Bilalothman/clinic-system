@@ -3,36 +3,32 @@ import { useAuth } from '../../../hooks/useAuth';
 import { useApi } from '../../../hooks/useApi';
 import './MyRecords.css';
 
-const defaultMedicalRecords = [
-  { date: '2024-01-15', doctor: 'Dr. John Smith', diagnosis: 'Hypertension controlled', prescription: 'Amlodipine 5mg' },
-  { date: '2024-01-10', doctor: 'Dr. Sarah Johnson', diagnosis: 'Routine checkup', prescription: 'None' },
-];
-
 const MyRecords = () => {
   const { user } = useAuth();
   const { apiCall } = useApi();
-  const [records, setRecords] = useState(defaultMedicalRecords);
+  const [records, setRecords] = useState([]);
   const [labResults, setLabResults] = useState([]);
 
-  const patientId = user?.userId || '201';
+  const patientId = user?.userId || '';
 
   useEffect(() => {
     const loadData = async () => {
+      if (!patientId) {
+        setRecords([]);
+        setLabResults([]);
+        return;
+      }
+
       try {
         const [recordRows, labRows] = await Promise.all([
           apiCall(`/medical-records?patientId=${patientId}`),
           apiCall(`/lab-results?patientId=${patientId}`),
         ]);
 
-        if (recordRows?.length) {
-          setRecords([...recordRows].sort((a, b) => b.date.localeCompare(a.date)));
-        } else {
-          setRecords(defaultMedicalRecords);
-        }
-
+        setRecords((recordRows || []).sort((a, b) => b.date.localeCompare(a.date)));
         setLabResults((labRows || []).sort((a, b) => b.date.localeCompare(a.date)));
       } catch (error) {
-        setRecords(defaultMedicalRecords);
+        setRecords([]);
         setLabResults([]);
       }
     };
@@ -57,16 +53,23 @@ const MyRecords = () => {
             <div className="timeline-content">
               <div className="record-header">
                 <h5>{record.doctor || 'Doctor'}</h5>
-                <span className="diagnosis-tag">{record.diagnosis}</span>
+                <span className="diagnosis-tag">Medical Record</span>
               </div>
-              {record.prescription && (
-                <div className="prescription">
-                  <strong>Prescription:</strong> {record.prescription}
-                </div>
-              )}
+              <div className="record-field">
+                <strong>Diagnosis:</strong> {record.diagnosis || 'No diagnosis provided'}
+              </div>
+              <div className="record-field prescription">
+                <strong>Prescription:</strong> {record.prescription || 'No prescription provided'}
+              </div>
+              <div className="record-field notes">
+                <strong>Notes:</strong> {record.notes || 'No notes provided'}
+              </div>
             </div>
           </div>
         ))}
+        {!records.length && (
+          <div className="empty-state">No medical records added for your account yet.</div>
+        )}
       </div>
 
       <div className="lab-results-section">

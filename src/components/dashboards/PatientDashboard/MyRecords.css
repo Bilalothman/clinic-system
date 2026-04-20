@@ -64,6 +64,22 @@
   font-size: 0.95rem;
 }
 
+.record-field {
+  margin-top: 0.65rem;
+  color: #334155;
+  line-height: 1.45;
+}
+
+.record-field strong {
+  color: #1e293b;
+}
+
+.notes {
+  background: rgba(148, 163, 184, 0.12);
+  padding: 0.8rem 1rem;
+  border-radius: 10px;
+}
+
 .lab-results-section {
   margin-top: 1.5rem;
   padding-top: 1rem;

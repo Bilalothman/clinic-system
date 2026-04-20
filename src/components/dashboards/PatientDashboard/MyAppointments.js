@@ -72,8 +72,8 @@ const MyAppointments = () => {
   const [feedback, setFeedback] = useState('Fill out the form to book a new appointment, or reschedule an existing one.');
   const [bookingForm, setBookingForm] = useState(emptyForm);
 
-  const patientId = user?.userId || '201';
-  const patientName = user?.profile?.name || (patientId === '201' ? 'John Doe' : `Patient ${patientId}`);
+  const patientId = user?.userId || '';
+  const patientName = user?.profile?.name || (patientId ? `Patient ${patientId}` : 'Patient');
 
   const loadDoctors = async () => {
     try {
@@ -95,6 +95,11 @@ const MyAppointments = () => {
   };
 
   const loadAppointments = async () => {
+    if (!patientId) {
+      setAllAppointments([]);
+      return;
+    }
+
     try {
       const appointments = await apiCall(`/appointments?patientId=${patientId}`);
       setAllAppointments(appointments || []);

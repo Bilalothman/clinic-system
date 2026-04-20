@@ -56,6 +56,7 @@ const MedicalRecords = () => {
   const { apiCall } = useApi();
   const [labResults, setLabResults] = useState([]);
   const [medicalRecords, setMedicalRecords] = useState([]);
+  const [allPatients, setAllPatients] = useState([]);
   const [feedback, setFeedback] = useState('Add a new lab result for a patient.');
   const [recordFeedback, setRecordFeedback] = useState('Add a medical record for a patient.');
   const [searchTerm, setSearchTerm] = useState('');
@@ -77,14 +78,16 @@ const MedicalRecords = () => {
 
   const loadData = async () => {
     try {
-      const [recordsRows, labsRows, appointmentsRows] = await Promise.all([
+      const [recordsRows, labsRows, appointmentsRows, patientRows] = await Promise.all([
         apiCall(`/medical-records?doctorId=${user?.userId || ''}`),
         apiCall(`/lab-results?doctorId=${user?.userId || ''}`),
         apiCall(`/appointments?doctorId=${user?.userId || ''}`),
+        apiCall('/patients'),
       ]);
 
       setMedicalRecords(recordsRows?.length ? recordsRows : defaultRecords);
       setLabResults(labsRows || []);
+      setAllPatients(patientRows || []);
 
       const patientNames = Array.from(new Set((appointmentsRows || []).map((item) => item.patient).filter(Boolean)));
       setRecordForm((current) => ({ ...current, patient: current.patient || patientNames[0] || '' }));
@@ -101,10 +104,12 @@ const MedicalRecords = () => {
   }, [user?.userId]);
 
   const patientOptions = useMemo(() => {
+    const fromPatients = allPatients.map((item) => item.name);
     const fromRecords = medicalRecords.map((item) => item.patient);
     const fromLabs = labResults.map((item) => item.patient);
-    return Array.from(new Set([...fromRecords, ...fromLabs].filter(Boolean)));
-  }, [medicalRecords, labResults]);
+    return Array.from(new Set([...fromPatients, ...fromRecords, ...fromLabs].filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b));
+  }, [allPatients, medicalRecords, labResults]);
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
 
