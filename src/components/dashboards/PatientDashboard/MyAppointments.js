@@ -164,13 +164,16 @@ const MyAppointments = () => {
     loadSelectedDoctorAppointments();
   }, [apiCall, bookingForm.date, selectedDoctor?.id]);
 
-  const confirmedBookedTimes = useMemo(() => {
+  const bookedTimes = useMemo(() => {
     if (!bookingForm.date) {
       return [];
     }
 
     return selectedDoctorAppointments
-      .filter((appointment) => appointment.date === bookingForm.date && appointment.status === 'confirmed')
+      .filter((appointment) =>
+        appointment.date === bookingForm.date
+        && appointment.status !== 'cancelled'
+      )
       .map((appointment) => appointment.time);
   }, [bookingForm.date, selectedDoctorAppointments]);
 
@@ -188,8 +191,8 @@ const MyAppointments = () => {
       return [];
     }
 
-    return (selectedDoctorSchedule.times || []).filter((timeOption) => !confirmedBookedTimes.includes(timeOption));
-  }, [bookingForm.date, confirmedBookedTimes, isSelectedDateAvailable, selectedDoctorSchedule.times]);
+    return (selectedDoctorSchedule.times || []).filter((timeOption) => !bookedTimes.includes(timeOption));
+  }, [bookingForm.date, bookedTimes, isSelectedDateAvailable, selectedDoctorSchedule.times]);
 
   useEffect(() => {
     if (!bookingForm.date) {

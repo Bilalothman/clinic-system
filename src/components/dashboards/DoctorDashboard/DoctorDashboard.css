@@ -22,6 +22,22 @@
   font-weight: 500;
 }
 
+.doctor-stats-state {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  color: #334155;
+  font-weight: 600;
+  margin-top: 1rem;
+}
+
+.doctor-stats-error {
+  border-color: #fecaca;
+  background: #fff1f2;
+  color: #b91c1c;
+}
+
 .doctor-chart-grid {
   margin: 2rem 0;
   display: grid;
@@ -65,10 +81,12 @@
 .doctor-metric-bars {
   height: 170px;
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(46px, 1fr));
   align-items: end;
   gap: 0.5rem;
   width: 100%;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
 }
 
 .doctor-metric-bar-column {
@@ -78,6 +96,13 @@
   justify-content: end;
   align-items: center;
   gap: 0.35rem;
+}
+
+.doctor-metric-bar-value {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #334155;
+  line-height: 1;
 }
 
 .doctor-metric-bar-fill {
@@ -132,12 +157,6 @@
 
 @media (max-width: 640px) {
   .doctor-metric-bars {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    height: auto;
-    row-gap: 0.9rem;
-  }
-
-  .doctor-metric-bar-column {
-    min-height: 120px;
+    min-width: 430px;
   }
 }

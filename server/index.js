@@ -77,7 +77,27 @@ const parseDuration = (value) => {
   return Math.max(1, Number(matched[0]));
 };
 
-const hasConfirmedAppointment = async ({ doctorId, date, time, excludeAppointmentId = null }) => {
+const toIsoDate = (value) => {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const toDateValue = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  }
+
+  const parsed = new Date(`${String(value).slice(0, 10)}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const hasBookedAppointment = async ({ doctorId, date, time, excludeAppointmentId = null }) => {
   const params = [Number(doctorId), date, time];
   let sql = `
     SELECT appointment_id
@@ -85,7 +105,7 @@ const hasConfirmedAppointment = async ({ doctorId, date, time, excludeAppointmen
     WHERE doctor_id = ?
       AND appointment_date = ?
       AND appointment_time = ?
-      AND status = 'confirmed'`;
+      AND status IN ('pending', 'confirmed')`;
 
   if (excludeAppointmentId !== null && excludeAppointmentId !== undefined) {
     sql += ' AND appointment_id <> ?';
@@ -484,6 +504,176 @@ app.get('/api/doctors', requireAuth, asyncHandler(async (req, res) => {
     ['doctor']
   );
   res.json(rows.map(formatDoctor));
+}));
+
+app.get('/api/doctor-dashboard/stats', requireAuth, asyncHandler(async (req, res) => {
+  const requestedDays = Number(req.query?.days || 7);
+  const days = Number.isFinite(requestedDays) ? Math.min(Math.max(Math.round(requestedDays), 1), 30) : 7;
+  const requestedDoctorId = req.query?.doctorId ? Number(req.query.doctorId) : null;
+  const requestedAnchorDate = typeof req.query?.anchorDate === 'string' ? req.query.anchorDate : '';
+
+  let doctorId = Number(req.user.userId);
+  if (req.user.role === 'manager' && Number.isFinite(requestedDoctorId) && requestedDoctorId > 0) {
+    doctorId = requestedDoctorId;
+  }
+
+  if (req.user.role !== 'doctor' && req.user.role !== 'manager') {
+    res.status(403).json({ message: 'Not allowed.' });
+    return;
+  }
+
+  const [latestAppointmentRows, latestRecordRows, latestLabRows] = await Promise.all([
+    query(
+      `SELECT MAX(appointment_date) AS latest_date
+       FROM appointment
+       WHERE doctor_id = ?
+         AND status IN ('pending', 'confirmed')`,
+      [doctorId]
+    ),
+    query(
+      `SELECT MAX(record_date) AS latest_date
+       FROM medical_record
+       WHERE doctor_id = ?`,
+      [doctorId]
+    ),
+    query(
+      `SELECT MAX(result_date) AS latest_date
+       FROM lab_result
+       WHERE doctor_id = ?`,
+      [doctorId]
+    ),
+  ]);
+
+  const latestDates = [
+    toDateValue(latestAppointmentRows[0]?.latest_date),
+    toDateValue(latestRecordRows[0]?.latest_date),
+    toDateValue(latestLabRows[0]?.latest_date),
+  ].filter(Boolean);
+
+  const anchorDate = toDateValue(requestedAnchorDate);
+  const endDate = anchorDate || (latestDates.length
+    ? latestDates.reduce((maxDate, current) => (current > maxDate ? current : maxDate))
+    : new Date());
+  const startDate = new Date(endDate);
+  startDate.setDate(endDate.getDate() - (days - 1));
+  const startIso = toIsoDate(startDate);
+  const endIso = toIsoDate(endDate);
+
+  const [appointmentAggRows, recordsAggRows, labAggRows] = await Promise.all([
+    query(
+      `SELECT
+        DATE_FORMAT(appointment_date, '%Y-%m-%d') AS day,
+        SUM(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END) AS appointments_count,
+        COUNT(DISTINCT patient_id) AS patients_count
+       FROM appointment
+       WHERE doctor_id = ?
+         AND appointment_date BETWEEN ? AND ?
+         AND status IN ('pending', 'confirmed')
+       GROUP BY appointment_date`,
+      [doctorId, startIso, endIso]
+    ),
+    query(
+      `SELECT
+        DATE_FORMAT(record_date, '%Y-%m-%d') AS day,
+        COUNT(*) AS records_count
+       FROM medical_record
+       WHERE doctor_id = ?
+         AND record_date BETWEEN ? AND ?
+       GROUP BY record_date`,
+      [doctorId, startIso, endIso]
+    ),
+    query(
+      `SELECT
+        DATE_FORMAT(result_date, '%Y-%m-%d') AS day,
+        COUNT(*) AS lab_results_count
+       FROM lab_result
+       WHERE doctor_id = ?
+         AND result_date BETWEEN ? AND ?
+       GROUP BY result_date`,
+      [doctorId, startIso, endIso]
+    ),
+  ]);
+
+  const [appointmentsTotalRows, patientsTotalRows, recordsTotalRows, labResultsTotalRows] = await Promise.all([
+    query(
+      `SELECT COUNT(*) AS total
+       FROM appointment
+       WHERE doctor_id = ?
+         AND status IN ('pending', 'confirmed')`,
+      [doctorId]
+    ),
+    query(
+      `SELECT COUNT(DISTINCT patient_id) AS total
+       FROM appointment
+       WHERE doctor_id = ?`,
+      [doctorId]
+    ),
+    query(
+      `SELECT COUNT(*) AS total
+       FROM medical_record
+       WHERE doctor_id = ?`,
+      [doctorId]
+    ),
+    query(
+      `SELECT COUNT(*) AS total
+       FROM lab_result
+       WHERE doctor_id = ?`,
+      [doctorId]
+    ),
+  ]);
+
+  const appointmentByDay = {};
+  appointmentAggRows.forEach((row) => {
+    appointmentByDay[row.day] = {
+      appointments: Number(row.appointments_count || 0),
+      patients: Number(row.patients_count || 0),
+    };
+  });
+
+  const recordsByDay = {};
+  recordsAggRows.forEach((row) => {
+    recordsByDay[row.day] = Number(row.records_count || 0);
+  });
+  const labResultsByDay = {};
+  labAggRows.forEach((row) => {
+    labResultsByDay[row.day] = Number(row.lab_results_count || 0);
+  });
+
+  const timeline = [];
+  const metricAppointments = [];
+  const metricPatients = [];
+  const metricRecords = [];
+  const metricLabResults = [];
+
+  for (let offset = 0; offset < days; offset += 1) {
+    const dayDate = new Date(startDate);
+    dayDate.setDate(startDate.getDate() + offset);
+    const dayIso = toIsoDate(dayDate);
+    timeline.push(dayIso);
+    metricAppointments.push(appointmentByDay[dayIso]?.appointments || 0);
+    metricPatients.push(appointmentByDay[dayIso]?.patients || 0);
+    metricRecords.push(recordsByDay[dayIso] || 0);
+    metricLabResults.push(labResultsByDay[dayIso] || 0);
+  }
+
+  res.json({
+    doctorId,
+    from: startIso,
+    to: endIso,
+    days: timeline,
+    metrics: {
+      appointments: metricAppointments,
+      patients: metricPatients,
+      records: metricRecords,
+      labResults: metricLabResults,
+    },
+    totals: {
+      appointments: Number(appointmentsTotalRows[0]?.total || 0),
+      patients: Number(patientsTotalRows[0]?.total || 0),
+      records: Number(recordsTotalRows[0]?.total || 0),
+      labResults: Number(labResultsTotalRows[0]?.total || 0),
+    },
+  });
 }));
 
 app.get('/api/doctor-reviews', requireAuth, asyncHandler(async (req, res) => {
@@ -895,14 +1085,14 @@ app.post('/api/appointments', requireAuth, asyncHandler(async (req, res) => {
     return;
   }
 
-  const isSlotTaken = await hasConfirmedAppointment({
+  const isSlotTaken = await hasBookedAppointment({
     doctorId: resolvedDoctorId,
     date,
     time,
   });
 
   if (isSlotTaken) {
-    res.status(409).json({ message: 'This time slot is already confirmed for another appointment.' });
+    res.status(409).json({ message: 'This time slot is already booked for another appointment.' });
     return;
   }
 
@@ -991,8 +1181,8 @@ app.patch('/api/appointments/:id', requireAuth, asyncHandler(async (req, res) =>
     return;
   }
 
-  if (nextStatus === 'confirmed') {
-    const isSlotTaken = await hasConfirmedAppointment({
+  if (nextStatus !== 'cancelled') {
+    const isSlotTaken = await hasBookedAppointment({
       doctorId: existing.doctor_id,
       date: nextDate,
       time: nextTime,
@@ -1001,7 +1191,7 @@ app.patch('/api/appointments/:id', requireAuth, asyncHandler(async (req, res) =>
 
     if (isSlotTaken) {
       res.status(409).json({
-        message: 'This time slot is already confirmed for another appointment.',
+        message: 'This time slot is already booked for another appointment.',
       });
       return;
     }

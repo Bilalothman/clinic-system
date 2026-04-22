@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
+import { useApi } from '../../../hooks/useApi';
 import Header from '../../common/Header';
 import Sidebar from '../../common/Sidebar';
 import MyProfile from '../../common/MyProfile';
@@ -11,59 +12,117 @@ import './DoctorDashboard.css';
 
 const DoctorDashboard = () => {
   const { user } = useAuth();
+  const { apiCall } = useApi();
   const location = useLocation();
   const currentSection = location.pathname.split('/')[2] || 'overview';
-  const displayName = user?.profile?.name || 'Dr. Smith';
-  const monthlyMetrics = [
-    {
-      label: 'Appointments',
-      colorClass: 'doctor-metric-blue',
-      values: [
-        { month: 'Jan', value: 24 },
-        { month: 'Feb', value: 28 },
-        { month: 'Mar', value: 31 },
-        { month: 'Apr', value: 29 },
-        { month: 'May', value: 34 },
-        { month: 'Jun', value: 36 }
-      ]
+  const displayName = user?.profile?.name || 'Doctor';
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState('');
+  const [dailyStats, setDailyStats] = useState({
+    days: [],
+    metrics: {
+      appointments: [],
+      patients: [],
+      records: [],
+      labResults: [],
     },
-    {
-      label: 'Patients',
-      colorClass: 'doctor-metric-green',
-      values: [
-        { month: 'Jan', value: 18 },
-        { month: 'Feb', value: 20 },
-        { month: 'Mar', value: 22 },
-        { month: 'Apr', value: 23 },
-        { month: 'May', value: 24 },
-        { month: 'Jun', value: 26 }
-      ]
+    totals: {
+      appointments: 0,
+      patients: 0,
+      records: 0,
+      labResults: 0,
     },
-    {
-      label: 'Records',
-      colorClass: 'doctor-metric-amber',
-      values: [
-        { month: 'Jan', value: 11 },
-        { month: 'Feb', value: 12 },
-        { month: 'Mar', value: 13 },
-        { month: 'Apr', value: 14 },
-        { month: 'May', value: 14 },
-        { month: 'Jun', value: 16 }
-      ]
-    },
-    {
-      label: 'Consultations',
-      colorClass: 'doctor-metric-red',
-      values: [
-        { month: 'Jan', value: 14 },
-        { month: 'Feb', value: 15 },
-        { month: 'Mar', value: 16 },
-        { month: 'Apr', value: 17 },
-        { month: 'May', value: 19 },
-        { month: 'Jun', value: 20 }
-      ]
+  });
+
+  useEffect(() => {
+    const loadDailyStats = async () => {
+      if (!user?.userId) {
+        return;
+      }
+
+      setStatsLoading(true);
+      setStatsError('');
+      try {
+        const anchorDate = user?.loginDate ? `&anchorDate=${encodeURIComponent(user.loginDate)}` : '';
+        const response = await apiCall(`/doctor-dashboard/stats?days=7${anchorDate}`);
+        setDailyStats({
+          days: Array.isArray(response?.days) ? response.days : [],
+          metrics: {
+            appointments: response?.metrics?.appointments || [],
+            patients: response?.metrics?.patients || [],
+            records: response?.metrics?.records || [],
+            labResults: response?.metrics?.labResults || [],
+          },
+          totals: {
+            appointments: Number(response?.totals?.appointments || 0),
+            patients: Number(response?.totals?.patients || 0),
+            records: Number(response?.totals?.records || 0),
+            labResults: Number(response?.totals?.labResults || 0),
+          },
+        });
+      } catch (error) {
+        setStatsError(error.message || 'Could not load daily chart data.');
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+
+    loadDailyStats();
+  }, [apiCall, user?.loginDate, user?.userId]);
+
+  const formatDayLabel = (dateString) => {
+    if (!dateString) {
+      return '-';
     }
-  ];
+
+    const date = new Date(`${dateString}T00:00:00`);
+    return date.toLocaleDateString('en-US', { weekday: 'short', day: '2-digit' });
+  };
+
+  const chartMetrics = useMemo(() => {
+    const labels = dailyStats.days || [];
+    const buildSeries = (values = []) => labels.map((day, index) => ({
+      day: formatDayLabel(day),
+      value: Number(values[index] || 0),
+    }));
+
+    return [
+      {
+        label: 'Appointments',
+        colorClass: 'doctor-metric-blue',
+        values: buildSeries(dailyStats.metrics.appointments),
+        total: Number(dailyStats.totals.appointments || 0),
+      },
+      {
+        label: 'Patients',
+        colorClass: 'doctor-metric-green',
+        values: buildSeries(dailyStats.metrics.patients),
+        total: Number(dailyStats.totals.patients || 0),
+      },
+      {
+        label: 'Records',
+        colorClass: 'doctor-metric-amber',
+        values: buildSeries(dailyStats.metrics.records),
+        total: Number(dailyStats.totals.records || 0),
+      },
+      {
+        label: 'Lab Results',
+        colorClass: 'doctor-metric-red',
+        values: buildSeries(dailyStats.metrics.labResults),
+        total: Number(dailyStats.totals.labResults || 0),
+      },
+    ];
+  }, [
+    dailyStats.days,
+    dailyStats.metrics.appointments,
+    dailyStats.metrics.labResults,
+    dailyStats.metrics.patients,
+    dailyStats.metrics.records,
+    dailyStats.totals.appointments,
+    dailyStats.totals.labResults,
+    dailyStats.totals.patients,
+    dailyStats.totals.records,
+  ]);
 
   return (
     <div className="layout-container">
@@ -72,46 +131,45 @@ const DoctorDashboard = () => {
         <Header title="Doctor Dashboard" userRole={displayName} />
         <div className="container">
           <div className="welcome-section bounce-in">
-            <h2>Good Morning, Dr. Smith!</h2>
-            <p>Here's what's happening with your patients today</p>
+            <h2>Good Day, {displayName}!</h2>
+            <p>Here is your day-by-day activity from the database.</p>
           </div>
 
           {currentSection === 'overview' && (
-            <div className="doctor-chart-grid fade-in-up">
-              {monthlyMetrics.map((metric) => {
-                const latestValue = metric.values[metric.values.length - 1]?.value || 0;
-                const maxMetricValue = Math.max(...metric.values.map((item) => item.value));
+            <>
+              {statsError && <div className="doctor-stats-state doctor-stats-error">{statsError}</div>}
+              {statsLoading && <div className="doctor-stats-state">Loading chart data...</div>}
+              {!statsLoading && !statsError && (
+                <div className="doctor-chart-grid fade-in-up">
+                  {chartMetrics.map((metric) => {
+                    const maxMetricValue = Math.max(...metric.values.map((item) => item.value), 1);
 
-                return (
-                  <div className="doctor-chart-card" key={metric.label}>
-                    <div className="doctor-chart-header">
-                      <h3>{metric.label}</h3>
-                      <span className="doctor-chart-current-value">{latestValue}</span>
-                    </div>
-                    <div className={`doctor-metric-bars ${metric.colorClass}`}>
-                      {metric.values.map((item) => (
-                        <div className="doctor-metric-bar-column" key={`${metric.label}-${item.month}`}>
-                          <div
-                            className="doctor-metric-bar-fill"
-                            style={{ height: `${Math.max((item.value / maxMetricValue) * 100, 10)}%` }}
-                          />
-                          <span className="doctor-metric-bar-month">{item.month}</span>
+                    return (
+                      <div className="doctor-chart-card" key={metric.label}>
+                        <div className="doctor-chart-header">
+                          <h3>{metric.label}</h3>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {currentSection === 'overview' && (
-            <div className="dashboard-grid">
-              <Appointments showPendingOnly />
-              <div className="dashboard-stack">
-                <MedicalRecords />
-              </div>
-            </div>
+                        <div className={`doctor-metric-bars ${metric.colorClass}`}>
+                          {metric.values.map((item, index) => (
+                            <div className="doctor-metric-bar-column" key={`${metric.label}-${index}-${item.day}`}>
+                              <span className="doctor-metric-bar-value">{item.value}</span>
+                              <div
+                                className="doctor-metric-bar-fill"
+                                style={{ height: `${Math.max((item.value / maxMetricValue) * 100, 10)}%` }}
+                              />
+                              <span className="doctor-metric-bar-month">{item.day}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {!chartMetrics[0].values.length && (
+                    <div className="doctor-stats-state">No daily data available yet.</div>
+                  )}
+                </div>
+              )}
+            </>
           )}
 
           {currentSection === 'appointments' && <Appointments />}
