@@ -46,8 +46,6 @@ const ProtectedRoute = ({ children }) => {
 
 const DashboardRouter = () => {
   const { user, loading } = useAuth();
-  const location = useLocation();
-  const navigate = useNavigate();
 
   const getDashboardPath = useCallback((role) => {
     switch (role) {
@@ -57,15 +55,6 @@ const DashboardRouter = () => {
       default: return '/login';
     }
   }, []);
-
-  useEffect(() => {
-    if (user) {
-      const dashboardPath = getDashboardPath(user.role);
-      if (!location.pathname.startsWith(dashboardPath)) {
-        navigate(dashboardPath, { replace: true });
-      }
-    }
-  }, [user, location.pathname, navigate, getDashboardPath]);
 
   if (loading) {
     return null;
@@ -77,20 +66,14 @@ const DashboardRouter = () => {
 
   return (
     <Routes>
-      <Route path="/manager" element={<ManagerDashboard />} />
-      <Route path="/manager/doctors" element={<ManagerDashboard />} />
-      <Route path="/manager/patients" element={<ManagerDashboard />} />
-      <Route path="/manager/appointments" element={<ManagerDashboard />} />
-      <Route path="/manager/profile" element={<ManagerDashboard />} />
-      <Route path="/doctor" element={<DoctorDashboard />} />
-      <Route path="/doctor/appointments" element={<DoctorDashboard />} />
-      <Route path="/doctor/patients" element={<DoctorDashboard />} />
-      <Route path="/doctor/records" element={<DoctorDashboard />} />
-      <Route path="/doctor/profile" element={<DoctorDashboard />} />
-      <Route path="/patient" element={<PatientDashboard />} />
-      <Route path="/patient/appointments" element={<PatientDashboard />} />
-      <Route path="/patient/records" element={<PatientDashboard />} />
-      <Route path="/patient/profile" element={<PatientDashboard />} />
+      <Route path="/manager/*" element={<ManagerDashboard />} />
+      <Route path="/doctor/*" element={<DoctorDashboard />} />
+      <Route path="/patient/*" element={<PatientDashboard />} />
+      <Route path="/appointments" element={<Navigate to={`${getDashboardPath(user.role)}/appointments`} replace />} />
+      <Route path="/patients" element={<Navigate to={`${getDashboardPath(user.role)}/patients`} replace />} />
+      <Route path="/records" element={<Navigate to={`${getDashboardPath(user.role)}/records`} replace />} />
+      <Route path="/doctors" element={<Navigate to={`${getDashboardPath(user.role)}/doctors`} replace />} />
+      <Route path="/profile" element={<Navigate to={`${getDashboardPath(user.role)}/profile`} replace />} />
       <Route path="*" element={<Navigate to={getDashboardPath(user.role)} replace />} />
     </Routes>
   );

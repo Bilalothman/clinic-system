@@ -1,5 +1,7 @@
+import { useCallback } from 'react';
+
 export const useApi = () => {
-  const apiCall = async (endpoint, options = {}) => {
+  const apiCall = useCallback(async (endpoint, options = {}) => {
     const token = localStorage.getItem('token');
     const baseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001/api';
     
@@ -27,7 +29,7 @@ export const useApi = () => {
     } catch (error) {
       throw new Error(error.message);
     }
-  };
+  }, []);
 
   return { apiCall };
 };

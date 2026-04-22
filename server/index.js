@@ -1211,26 +1211,47 @@ const checkDatabaseOnStartup = async () => {
   }
 };
 
+let serverInstance = null;
+let isStartingServer = false;
+
 const startServer = async () => {
-  await checkDatabaseOnStartup();
+  if (serverInstance || isStartingServer) {
+    return serverInstance;
+  }
 
-  const server = app.listen(PORT, () => {
-    // eslint-disable-next-line no-console
-    console.log(`API running on http://localhost:${PORT}`);
-    // eslint-disable-next-line no-console
-    console.log(`Health endpoints: http://localhost:${PORT}/health and http://localhost:${PORT}/api/health`);
-  });
+  isStartingServer = true;
+  try {
+    await checkDatabaseOnStartup();
 
-  server.on('error', (error) => {
-    if (error?.code === 'EADDRINUSE') {
+    const server = app.listen(PORT, () => {
       // eslint-disable-next-line no-console
-      console.error(`Port ${PORT} is already in use. Stop the old process or change PORT in .env.`);
-      return;
-    }
+      console.log(`API running on http://localhost:${PORT}`);
+      // eslint-disable-next-line no-console
+      console.log(`Health endpoints: http://localhost:${PORT}/health and http://localhost:${PORT}/api/health`);
+    });
 
-    // eslint-disable-next-line no-console
-    console.error(`Server startup error: ${error.message}`);
-  });
+    serverInstance = server;
+
+    server.on('error', (error) => {
+      serverInstance = null;
+      if (error?.code === 'EADDRINUSE') {
+        // eslint-disable-next-line no-console
+        console.error(`Port ${PORT} is already in use. Stop the old process or change PORT in .env.`);
+        return;
+      }
+
+      // eslint-disable-next-line no-console
+      console.error(`Server startup error: ${error.message}`);
+    });
+
+    server.on('close', () => {
+      serverInstance = null;
+    });
+
+    return server;
+  } finally {
+    isStartingServer = false;
+  }
 };
 
 startServer();
