@@ -14,6 +14,7 @@ USE clinic_system_db;
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS bills;
+DROP TABLE IF EXISTS doctor_review;
 DROP TABLE IF EXISTS prescription;
 DROP TABLE IF EXISTS lab_result;
 DROP TABLE IF EXISTS medical_record;
@@ -38,6 +39,8 @@ CREATE TABLE doctor (
   address VARCHAR(255) NULL,
   dob DATE NULL,
   gender ENUM('male', 'female', 'other') NULL,
+  profile_image LONGTEXT NULL,
+  profile_image_name VARCHAR(255) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (doctor_id),
@@ -60,6 +63,8 @@ CREATE TABLE patient (
   last_visit DATE NULL,
   notes TEXT NULL,
   status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
+  profile_image LONGTEXT NULL,
+  profile_image_name VARCHAR(255) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (patient_id),
@@ -198,6 +203,26 @@ CREATE TABLE bills (
     ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+CREATE TABLE doctor_review (
+  doctor_review_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  doctor_id BIGINT UNSIGNED NOT NULL,
+  patient_id BIGINT UNSIGNED NOT NULL,
+  rating TINYINT UNSIGNED NOT NULL,
+  comment TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (doctor_review_id),
+  UNIQUE KEY uq_doctor_review_doctor_patient (doctor_id, patient_id),
+  KEY idx_doctor_review_doctor (doctor_id),
+  KEY idx_doctor_review_patient (patient_id),
+  CONSTRAINT fk_doctor_review_doctor
+    FOREIGN KEY (doctor_id) REFERENCES doctor(doctor_id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_doctor_review_patient
+    FOREIGN KEY (patient_id) REFERENCES patient(patient_id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- Demo data matching existing UI features.
 -- Manager + doctors in doctor table.
 INSERT INTO doctor (
@@ -296,3 +321,4 @@ ALTER TABLE medical_record AUTO_INCREMENT = 100;
 ALTER TABLE prescription AUTO_INCREMENT = 100;
 ALTER TABLE lab_result AUTO_INCREMENT = 100;
 ALTER TABLE bills AUTO_INCREMENT = 100;
+ALTER TABLE doctor_review AUTO_INCREMENT = 100;

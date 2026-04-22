@@ -112,6 +112,21 @@ const formatDoctor = (row) => ({
   address: row.address,
   dob: row.dob,
   gender: row.gender,
+  profileImage: row.profile_image || '',
+  profileImageName: row.profile_image_name || '',
+  avgRating: Number(row.avg_rating || 0),
+  reviewsCount: Number(row.reviews_count || 0),
+});
+
+const formatDoctorReview = (row) => ({
+  id: row.doctor_review_id,
+  doctorId: row.doctor_id,
+  patientId: row.patient_id,
+  patientName: row.patient_name || 'Patient',
+  rating: Number(row.rating || 0),
+  comment: row.comment || '',
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
 });
 
 const formatPatient = (row) => ({
@@ -232,6 +247,8 @@ const buildProfile = async (role, userId) => {
       address: patient.address,
       dob: patient.dob,
       gender: patient.gender,
+      avatar: patient.profile_image || '',
+      avatarName: patient.profile_image_name || '',
     };
   }
 
@@ -247,6 +264,8 @@ const buildProfile = async (role, userId) => {
     address: doctor.address,
     dob: doctor.dob,
     gender: doctor.gender,
+    avatar: doctor.profile_image || '',
+    avatarName: doctor.profile_image_name || '',
   };
 };
 
@@ -362,7 +381,7 @@ app.get('/api/auth/me', requireAuth, asyncHandler(async (req, res) => {
 }));
 
 app.patch('/api/profile', requireAuth, asyncHandler(async (req, res) => {
-  const { name, email, phone, address, dob, gender } = req.body || {};
+  const { name, email, phone, address, dob, gender, avatar, avatarName } = req.body || {};
   const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : null;
 
   if (req.user.role === 'patient') {
@@ -388,7 +407,8 @@ app.patch('/api/profile', requireAuth, asyncHandler(async (req, res) => {
 
     await query(
       `UPDATE patient
-       SET full_name = ?, email = ?, phone = ?, address = ?, dob = ?, gender = ?
+       SET full_name = ?, email = ?, phone = ?, address = ?, dob = ?, gender = ?,
+           profile_image = ?, profile_image_name = ?
        WHERE patient_id = ?`,
       [
         name !== undefined ? String(name).trim() : existing.full_name,
@@ -397,6 +417,8 @@ app.patch('/api/profile', requireAuth, asyncHandler(async (req, res) => {
         address !== undefined ? String(address).trim() : existing.address,
         dob !== undefined ? dob : existing.dob,
         gender !== undefined ? String(gender).trim() : existing.gender,
+        avatar !== undefined ? (avatar || null) : existing.profile_image,
+        avatarName !== undefined ? (avatarName || null) : existing.profile_image_name,
         Number(req.user.userId),
       ]
     );
@@ -428,7 +450,8 @@ app.patch('/api/profile', requireAuth, asyncHandler(async (req, res) => {
 
   await query(
     `UPDATE doctor
-     SET full_name = ?, email = ?, phone = ?, address = ?, dob = ?, gender = ?
+     SET full_name = ?, email = ?, phone = ?, address = ?, dob = ?, gender = ?,
+         profile_image = ?, profile_image_name = ?
      WHERE doctor_id = ?`,
     [
       name !== undefined ? String(name).trim() : existing.full_name,
@@ -437,6 +460,8 @@ app.patch('/api/profile', requireAuth, asyncHandler(async (req, res) => {
       address !== undefined ? String(address).trim() : existing.address,
       dob !== undefined ? dob : existing.dob,
       gender !== undefined ? String(gender).trim() : existing.gender,
+      avatar !== undefined ? (avatar || null) : existing.profile_image,
+      avatarName !== undefined ? (avatarName || null) : existing.profile_image_name,
       Number(req.user.userId),
     ]
   );
@@ -446,8 +471,100 @@ app.patch('/api/profile', requireAuth, asyncHandler(async (req, res) => {
 }));
 
 app.get('/api/doctors', requireAuth, asyncHandler(async (req, res) => {
-  const rows = await query('SELECT * FROM doctor WHERE role = ? ORDER BY full_name ASC', ['doctor']);
+  const rows = await query(
+    `SELECT
+      d.*,
+      COALESCE(AVG(dr.rating), 0) AS avg_rating,
+      COUNT(dr.doctor_review_id) AS reviews_count
+     FROM doctor d
+     LEFT JOIN doctor_review dr ON dr.doctor_id = d.doctor_id
+     WHERE d.role = ?
+     GROUP BY d.doctor_id
+     ORDER BY d.full_name ASC`,
+    ['doctor']
+  );
   res.json(rows.map(formatDoctor));
+}));
+
+app.get('/api/doctor-reviews', requireAuth, asyncHandler(async (req, res) => {
+  const doctorId = req.query?.doctorId ? Number(req.query.doctorId) : null;
+  const params = [];
+  let whereSql = '';
+
+  if (doctorId) {
+    whereSql = 'WHERE dr.doctor_id = ?';
+    params.push(doctorId);
+  }
+
+  const rows = await query(
+    `SELECT
+      dr.*,
+      p.full_name AS patient_name
+     FROM doctor_review dr
+     INNER JOIN patient p ON p.patient_id = dr.patient_id
+     ${whereSql}
+     ORDER BY dr.updated_at DESC, dr.doctor_review_id DESC`,
+    params
+  );
+
+  res.json(rows.map(formatDoctorReview));
+}));
+
+app.post('/api/doctors/:id/reviews', requireAuth, asyncHandler(async (req, res) => {
+  if (req.user.role !== 'patient') {
+    res.status(403).json({ message: 'Only patients can submit doctor reviews.' });
+    return;
+  }
+
+  const doctorId = Number(req.params.id);
+  const rating = Number(req.body?.rating);
+  const comment = String(req.body?.comment || '').trim();
+
+  if (!Number.isFinite(doctorId) || doctorId <= 0) {
+    res.status(400).json({ message: 'Invalid doctor.' });
+    return;
+  }
+
+  if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+    res.status(400).json({ message: 'Rating must be between 1 and 5.' });
+    return;
+  }
+
+  if (!comment) {
+    res.status(400).json({ message: 'Comment is required.' });
+    return;
+  }
+
+  const doctor = await doctorById(doctorId);
+  if (!doctor || doctor.role !== 'doctor') {
+    res.status(404).json({ message: 'Doctor not found.' });
+    return;
+  }
+
+  await query(
+    `INSERT INTO doctor_review
+      (doctor_id, patient_id, rating, comment)
+     VALUES (?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+      rating = VALUES(rating),
+      comment = VALUES(comment),
+      updated_at = CURRENT_TIMESTAMP`,
+    [doctorId, Number(req.user.userId), Math.round(rating), comment]
+  );
+
+  const rows = await query(
+    `SELECT
+      dr.*,
+      p.full_name AS patient_name
+     FROM doctor_review dr
+     INNER JOIN patient p ON p.patient_id = dr.patient_id
+     WHERE dr.doctor_id = ?
+       AND dr.patient_id = ?
+     LIMIT 1`,
+    [doctorId, Number(req.user.userId)]
+  );
+
+  res.status(201).json(formatDoctorReview(rows[0]));
 }));
 
 app.post('/api/doctors', requireAuth, requireRoles('manager'), asyncHandler(async (req, res) => {
@@ -1193,6 +1310,47 @@ app.use((error, _req, res, _next) => {
 const checkDatabaseOnStartup = async () => {
   try {
     await query('SELECT 1');
+    const ensureColumn = async (tableName, columnName, definitionSql) => {
+      const rows = await query(
+        `SELECT COUNT(*) AS count
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = ?
+           AND COLUMN_NAME = ?`,
+        [tableName, columnName]
+      );
+
+      if (Number(rows[0]?.count || 0) === 0) {
+        await query(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definitionSql}`);
+      }
+    };
+
+    await ensureColumn('doctor', 'profile_image', 'LONGTEXT NULL');
+    await ensureColumn('doctor', 'profile_image_name', 'VARCHAR(255) NULL');
+    await ensureColumn('patient', 'profile_image', 'LONGTEXT NULL');
+    await ensureColumn('patient', 'profile_image_name', 'VARCHAR(255) NULL');
+    await query(
+      `CREATE TABLE IF NOT EXISTS doctor_review (
+        doctor_review_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        doctor_id BIGINT UNSIGNED NOT NULL,
+        patient_id BIGINT UNSIGNED NOT NULL,
+        rating TINYINT UNSIGNED NOT NULL,
+        comment TEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (doctor_review_id),
+        UNIQUE KEY uq_doctor_review_doctor_patient (doctor_id, patient_id),
+        KEY idx_doctor_review_doctor (doctor_id),
+        KEY idx_doctor_review_patient (patient_id),
+        CONSTRAINT fk_doctor_review_doctor
+          FOREIGN KEY (doctor_id) REFERENCES doctor(doctor_id)
+          ON DELETE CASCADE,
+        CONSTRAINT fk_doctor_review_patient
+          FOREIGN KEY (patient_id) REFERENCES patient(patient_id)
+          ON DELETE CASCADE
+      ) ENGINE=InnoDB`
+    );
+
     startupDbStatus = {
       ok: true,
       checkedAt: new Date().toISOString(),

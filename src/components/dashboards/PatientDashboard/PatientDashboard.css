@@ -91,6 +91,32 @@
   padding: 1rem;
 }
 
+.patient-doctor-photo-row {
+  margin-bottom: 0.75rem;
+}
+
+.patient-doctor-photo {
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+}
+
+.patient-doctor-photo-fallback {
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  border: 1px solid #1d4ed8;
+}
+
 .patient-doctor-card h3 {
   margin: 0 0 0.4rem;
   font-size: 1rem;
@@ -107,6 +133,87 @@
   margin-top: 0.45rem;
   color: #1e293b;
   font-size: 0.92rem;
+}
+
+.patient-view-comments-btn {
+  margin-top: 0.75rem;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #1e293b;
+  border-radius: 10px;
+  padding: 0.45rem 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.patient-view-comments-btn:hover {
+  background: #e2e8f0;
+}
+
+.patient-doctor-reviews {
+  margin-top: 0.9rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.patient-doctor-reviews h4,
+.patient-review-form h4 {
+  margin: 0 0 0.55rem;
+  color: #0f172a;
+  font-size: 0.95rem;
+}
+
+.patient-review-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.6rem 0.7rem;
+  margin-bottom: 0.5rem;
+}
+
+.patient-review-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  color: #1e293b;
+  font-size: 0.9rem;
+}
+
+.patient-review-item p {
+  margin: 0.35rem 0 0;
+  color: #334155;
+  font-size: 0.9rem;
+}
+
+.patient-review-empty {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.patient-review-form {
+  margin-top: 0.9rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid #e2e8f0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.patient-review-form label {
+  font-size: 0.85rem;
+  color: #334155;
+  font-weight: 600;
+}
+
+.patient-review-form select,
+.patient-review-form textarea {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+  font: inherit;
+  color: #1e293b;
+  background: #fff;
 }
 
 @media (max-width: 900px) {

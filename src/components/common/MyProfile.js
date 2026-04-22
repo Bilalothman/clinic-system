@@ -14,6 +14,40 @@ const formatValue = (value) => {
   return value;
 };
 
+const compressImageToDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const image = new Image();
+
+      image.onload = () => {
+        const maxWidth = 640;
+        const scale = image.width > maxWidth ? maxWidth / image.width : 1;
+        const width = Math.max(1, Math.round(image.width * scale));
+        const height = Math.max(1, Math.round(image.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext('2d');
+
+        if (!context) {
+          reject(new Error('Could not prepare image canvas.'));
+          return;
+        }
+
+        context.drawImage(image, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.72));
+      };
+
+      image.onerror = () => reject(new Error('Could not load selected image.'));
+      image.src = String(reader.result || '');
+    };
+
+    reader.onerror = () => reject(new Error('Could not read selected image.'));
+    reader.readAsDataURL(file);
+  });
+
 const MyProfile = ({ title = 'My Profile' }) => {
   const { user, updateProfile } = useAuth();
   const { apiCall } = useApi();
@@ -31,6 +65,8 @@ const MyProfile = ({ title = 'My Profile' }) => {
     gender: '',
     dob: '',
     address: '',
+    avatar: '',
+    avatarName: '',
   });
   const [selectedDays, setSelectedDays] = useState([]);
   const [selectedTimes, setSelectedTimes] = useState([]);
@@ -44,8 +80,10 @@ const MyProfile = ({ title = 'My Profile' }) => {
       gender: profile.gender || '',
       dob: profile.dob || '',
       address: profile.address || '',
+      avatar: profile.avatar || '',
+      avatarName: profile.avatarName || '',
     });
-  }, [profile.address, profile.dob, profile.email, profile.gender, profile.name, profile.phone]);
+  }, [profile.address, profile.avatar, profile.avatarName, profile.dob, profile.email, profile.gender, profile.name, profile.phone]);
 
   const loadDoctorSettings = async () => {
     if (user?.role !== 'doctor') {
@@ -136,6 +174,40 @@ const MyProfile = ({ title = 'My Profile' }) => {
     }));
   };
 
+  const handleProfileImageChange = async (event) => {
+    const selectedFile = event.target.files?.[0];
+
+    if (!selectedFile) {
+      return;
+    }
+
+    if (!selectedFile.type.startsWith('image/')) {
+      setProfileFeedback('Please select a valid image file.');
+      return;
+    }
+
+    try {
+      const dataUrl = await compressImageToDataUrl(selectedFile);
+      setProfileForm((current) => ({
+        ...current,
+        avatar: dataUrl,
+        avatarName: selectedFile.name,
+      }));
+      setProfileFeedback('Profile photo selected. Save profile to apply it.');
+    } catch (error) {
+      setProfileFeedback(error.message || 'Could not process selected image.');
+    }
+  };
+
+  const handleRemoveProfileImage = () => {
+    setProfileForm((current) => ({
+      ...current,
+      avatar: '',
+      avatarName: '',
+    }));
+    setProfileFeedback('Profile photo removed. Save profile to apply changes.');
+  };
+
   const handleSaveProfile = async () => {
     if (user?.role !== 'doctor' && user?.role !== 'patient') {
       return;
@@ -156,6 +228,8 @@ const MyProfile = ({ title = 'My Profile' }) => {
           gender: profileForm.gender.trim(),
           dob: profileForm.dob || null,
           address: profileForm.address.trim(),
+          avatar: profileForm.avatar || null,
+          avatarName: profileForm.avatarName || null,
         }),
       });
 
@@ -175,6 +249,17 @@ const MyProfile = ({ title = 'My Profile' }) => {
       </div>
 
       <div className="profile-grid">
+        <div className="profile-item profile-item-wide">
+          <span className="profile-label">Photo</span>
+          <div className="profile-photo-row">
+            {profile.avatar ? (
+              <img src={profile.avatar} alt="Profile" className="profile-photo-preview" />
+            ) : (
+              <div className="profile-photo-fallback">No photo</div>
+            )}
+            <span className="profile-value">{formatValue(profile.avatarName || 'No photo uploaded')}</span>
+          </div>
+        </div>
         <div className="profile-item">
           <span className="profile-label">Full Name</span>
           <span className="profile-value">{formatValue(profile.name)}</span>
@@ -240,6 +325,8 @@ const MyProfile = ({ title = 'My Profile' }) => {
                         gender: profile.gender || '',
                         dob: profile.dob || '',
                         address: profile.address || '',
+                        avatar: profile.avatar || '',
+                        avatarName: profile.avatarName || '',
                       });
                     }}
                   >
@@ -310,6 +397,29 @@ const MyProfile = ({ title = 'My Profile' }) => {
                     onChange={(e) => handleProfileFieldChange('address', e.target.value)}
                     placeholder="Clinic or home address"
                   />
+                </div>
+
+                <div className="doctor-profile-field doctor-profile-field-wide">
+                  <label htmlFor="doctor-profile-photo">Profile Photo</label>
+                  <input
+                    id="doctor-profile-photo"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleProfileImageChange}
+                  />
+                  <div className="profile-photo-row">
+                    {profileForm.avatar ? (
+                      <img src={profileForm.avatar} alt="Selected profile" className="profile-photo-preview" />
+                    ) : (
+                      <div className="profile-photo-fallback">No photo</div>
+                    )}
+                    <span className="profile-value">{formatValue(profileForm.avatarName || 'No photo selected')}</span>
+                  </div>
+                  {profileForm.avatar && (
+                    <button type="button" className="btn-secondary" onClick={handleRemoveProfileImage}>
+                      Remove Photo
+                    </button>
+                  )}
                 </div>
               </div>
             )}

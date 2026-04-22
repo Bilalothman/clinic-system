@@ -5,7 +5,14 @@ import './Header.css';
 
 const Header = ({ title, userRole }) => {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
+  const avatar = user?.profile?.avatar || '';
+  const fallbackInitials = String(user?.profile?.name || userRole || 'User')
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || '')
+    .join('') || 'U';
 
   const handleLogout = () => {
     logout();
@@ -21,7 +28,13 @@ const Header = ({ title, userRole }) => {
           <button type="button" className="logout-btn" onClick={handleLogout}>
             Sign Out
           </button>
-          <div className="user-avatar">User</div>
+          <div className="user-avatar">
+            {avatar ? (
+              <img src={avatar} alt="Profile avatar" className="user-avatar-image" />
+            ) : (
+              <span>{fallbackInitials}</span>
+            )}
+          </div>
         </div>
       </div>
     </header>
