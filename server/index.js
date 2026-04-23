@@ -143,7 +143,7 @@ const formatDoctorReview = (row) => ({
   doctorId: row.doctor_id,
   patientId: row.patient_id,
   patientName: row.patient_name || 'Patient',
-  rating: Number(row.rating || 0),
+  rating: row.rating === null || row.rating === undefined ? null : Number(row.rating),
   comment: row.comment || '',
   createdAt: row.created_at,
   updatedAt: row.updated_at,
@@ -219,6 +219,19 @@ const doctorById = async (doctorId) => {
 const patientById = async (patientId) => {
   const rows = await query('SELECT * FROM patient WHERE patient_id = ?', [patientId]);
   return rows[0] || null;
+};
+
+const patientHasDoctorAppointment = async (patientId, doctorId) => {
+  const rows = await query(
+    `SELECT appointment_id
+     FROM appointment
+     WHERE patient_id = ?
+       AND doctor_id = ?
+     LIMIT 1`,
+    [Number(patientId), Number(doctorId)]
+  );
+
+  return Boolean(rows[0]);
 };
 
 const ensurePatient = async ({ patientId, patientName }) => {
@@ -495,7 +508,7 @@ app.get('/api/doctors', requireAuth, asyncHandler(async (req, res) => {
     `SELECT
       d.*,
       COALESCE(AVG(dr.rating), 0) AS avg_rating,
-      COUNT(dr.doctor_review_id) AS reviews_count
+      COUNT(dr.rating) AS reviews_count
      FROM doctor d
      LEFT JOIN doctor_review dr ON dr.doctor_id = d.doctor_id
      WHERE d.role = ?
@@ -707,7 +720,8 @@ app.post('/api/doctors/:id/reviews', requireAuth, asyncHandler(async (req, res) 
   }
 
   const doctorId = Number(req.params.id);
-  const rating = Number(req.body?.rating);
+  const hasRating = req.body?.rating !== undefined && req.body?.rating !== null && String(req.body.rating).trim() !== '';
+  const rating = hasRating ? Number(req.body.rating) : null;
   const comment = String(req.body?.comment || '').trim();
 
   if (!Number.isFinite(doctorId) || doctorId <= 0) {
@@ -715,13 +729,13 @@ app.post('/api/doctors/:id/reviews', requireAuth, asyncHandler(async (req, res) 
     return;
   }
 
-  if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+  if (hasRating && (!Number.isFinite(rating) || rating < 1 || rating > 5)) {
     res.status(400).json({ message: 'Rating must be between 1 and 5.' });
     return;
   }
 
-  if (!comment) {
-    res.status(400).json({ message: 'Comment is required.' });
+  if (!hasRating && !comment) {
+    res.status(400).json({ message: 'Please provide a rating or a comment.' });
     return;
   }
 
@@ -731,27 +745,62 @@ app.post('/api/doctors/:id/reviews', requireAuth, asyncHandler(async (req, res) 
     return;
   }
 
-  await query(
-    `INSERT INTO doctor_review
-      (doctor_id, patient_id, rating, comment)
-     VALUES (?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE
-      rating = VALUES(rating),
-      comment = VALUES(comment),
-      updated_at = CURRENT_TIMESTAMP`,
-    [doctorId, Number(req.user.userId), Math.round(rating), comment]
-  );
+  const canReviewDoctor = await patientHasDoctorAppointment(req.user.userId, doctorId);
+  if (!canReviewDoctor) {
+    res.status(403).json({ message: 'You can only review doctors you have booked with.' });
+    return;
+  }
+
+  let reviewId = null;
+
+  if (hasRating && !comment) {
+    const existingRatingRows = await query(
+      `SELECT doctor_review_id
+       FROM doctor_review
+       WHERE doctor_id = ?
+         AND patient_id = ?
+         AND rating IS NOT NULL
+       ORDER BY updated_at DESC, doctor_review_id DESC
+       LIMIT 1`,
+      [doctorId, Number(req.user.userId)]
+    );
+
+    if (existingRatingRows[0]) {
+      reviewId = Number(existingRatingRows[0].doctor_review_id);
+      await query(
+        `UPDATE doctor_review
+         SET rating = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE doctor_review_id = ?`,
+        [Math.round(rating), reviewId]
+      );
+    } else {
+      const insert = await query(
+        `INSERT INTO doctor_review
+          (doctor_id, patient_id, rating, comment)
+         VALUES (?, ?, ?, ?)`,
+        [doctorId, Number(req.user.userId), Math.round(rating), null]
+      );
+      reviewId = Number(insert.insertId);
+    }
+  } else {
+    const insert = await query(
+      `INSERT INTO doctor_review
+        (doctor_id, patient_id, rating, comment)
+       VALUES (?, ?, ?, ?)`,
+      [doctorId, Number(req.user.userId), hasRating ? Math.round(rating) : null, comment || null]
+    );
+    reviewId = Number(insert.insertId);
+  }
 
   const rows = await query(
     `SELECT
-      dr.*,
+     dr.*,
       p.full_name AS patient_name
      FROM doctor_review dr
      INNER JOIN patient p ON p.patient_id = dr.patient_id
-     WHERE dr.doctor_id = ?
-       AND dr.patient_id = ?
+     WHERE dr.doctor_review_id = ?
      LIMIT 1`,
-    [doctorId, Number(req.user.userId)]
+    [reviewId]
   );
 
   res.status(201).json(formatDoctorReview(rows[0]));
@@ -1524,12 +1573,11 @@ const checkDatabaseOnStartup = async () => {
         doctor_review_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         doctor_id BIGINT UNSIGNED NOT NULL,
         patient_id BIGINT UNSIGNED NOT NULL,
-        rating TINYINT UNSIGNED NOT NULL,
-        comment TEXT NOT NULL,
+        rating TINYINT UNSIGNED NULL,
+        comment TEXT NULL,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (doctor_review_id),
-        UNIQUE KEY uq_doctor_review_doctor_patient (doctor_id, patient_id),
         KEY idx_doctor_review_doctor (doctor_id),
         KEY idx_doctor_review_patient (patient_id),
         CONSTRAINT fk_doctor_review_doctor
@@ -1540,6 +1588,18 @@ const checkDatabaseOnStartup = async () => {
           ON DELETE CASCADE
       ) ENGINE=InnoDB`
     );
+    await query('ALTER TABLE doctor_review MODIFY COLUMN rating TINYINT UNSIGNED NULL');
+    await query('ALTER TABLE doctor_review MODIFY COLUMN comment TEXT NULL');
+    const reviewUniqueKeyRows = await query(
+      `SELECT COUNT(*) AS count
+       FROM information_schema.STATISTICS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = 'doctor_review'
+         AND INDEX_NAME = 'uq_doctor_review_doctor_patient'`
+    );
+    if (Number(reviewUniqueKeyRows[0]?.count || 0) > 0) {
+      await query('ALTER TABLE doctor_review DROP INDEX uq_doctor_review_doctor_patient');
+    }
 
     startupDbStatus = {
       ok: true,

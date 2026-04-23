@@ -186,6 +186,14 @@
   font-size: 0.9rem;
 }
 
+.patient-review-type {
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .patient-review-empty {
   color: #64748b;
   font-size: 0.9rem;
@@ -205,7 +213,47 @@
   font-weight: 600;
 }
 
-.patient-review-form select,
+.patient-star-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.patient-star-rating.is-disabled {
+  opacity: 0.6;
+}
+
+.patient-star,
+.patient-star-button {
+  font-size: 1.45rem;
+  line-height: 1;
+  color: #cbd5e1;
+}
+
+.patient-star.is-filled,
+.patient-star-button.is-filled {
+  color: #f59e0b;
+}
+
+.patient-star-button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.patient-star-button:hover,
+.patient-star-button:focus-visible {
+  color: #f59e0b;
+  transform: scale(1.08);
+  outline: none;
+}
+
+.patient-star-button:disabled {
+  cursor: default;
+}
+
 .patient-review-form textarea {
   width: 100%;
   border: 1px solid #cbd5e1;

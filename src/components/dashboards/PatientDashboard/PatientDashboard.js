@@ -8,6 +8,57 @@ import MyAppointments from './MyAppointments';
 import MyRecords from './MyRecords';
 import './PatientDashboard.css';
 
+const StarRating = ({ value, onChange, disabled = false, labelId }) => (
+  <div
+    className={`patient-star-rating${disabled ? ' is-disabled' : ''}`}
+    role={onChange ? 'radiogroup' : 'img'}
+    aria-labelledby={labelId}
+    aria-label={onChange ? undefined : `${value || 0} out of 5 stars`}
+  >
+    {[1, 2, 3, 4, 5].map((starValue) => {
+      const filled = starValue <= Number(value || 0);
+
+      if (!onChange) {
+        return (
+          <span
+            key={starValue}
+            className={`patient-star${filled ? ' is-filled' : ''}`}
+            aria-hidden="true"
+          >
+            {'\u2605'}
+          </span>
+        );
+      }
+
+      return (
+        <button
+          key={starValue}
+          type="button"
+          className={`patient-star-button${filled ? ' is-filled' : ''}`}
+          onClick={() => onChange(String(starValue))}
+          disabled={disabled}
+          role="radio"
+          aria-checked={starValue === Number(value || 0)}
+          aria-label={`${starValue} star${starValue > 1 ? 's' : ''}`}
+        >
+          {'\u2605'}
+        </button>
+      );
+    })}
+  </div>
+);
+
+const emptyReviewForm = { rating: '', comment: '' };
+
+const getDoctorClinicStatus = (doctor) => {
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+  const availableDays = Array.isArray(doctor?.availableDays) ? doctor.availableDays : [];
+  const availableTimes = Array.isArray(doctor?.availableTimes) ? doctor.availableTimes : [];
+  const isInClinicToday = availableDays.includes(today) && availableTimes.length > 0;
+
+  return isInClinicToday ? 'In Clinic Today' : 'Not In Clinic Today';
+};
+
 const PatientOverview = () => {
   const { user } = useAuth();
   const { apiCall } = useApi();
@@ -37,35 +88,36 @@ const PatientOverview = () => {
     return grouped;
   }, []);
 
-  const buildInitialForms = useCallback((doctorsList, reviewsMap) => {
+  const buildInitialForms = useCallback((doctorsList) => {
     const forms = {};
     doctorsList.forEach((doctor) => {
-      const myExisting = (reviewsMap[Number(doctor.id)] || []).find(
-        (review) => String(review.patientId) === String(user?.userId || '')
-      );
-      forms[Number(doctor.id)] = {
-        rating: String(myExisting?.rating || 5),
-        comment: myExisting?.comment || '',
-      };
+      forms[Number(doctor.id)] = { ...emptyReviewForm };
     });
     return forms;
-  }, [user?.userId]);
+  }, []);
+
+  const reloadDoctorsAndReviews = useCallback(async () => {
+    const [doctorRows, reviewRows] = await Promise.all([
+      apiCall('/doctors'),
+      apiCall('/doctor-reviews'),
+    ]);
+
+    const safeDoctors = Array.isArray(doctorRows) ? doctorRows : [];
+    const groupedReviews = groupReviewsByDoctor(Array.isArray(reviewRows) ? reviewRows : []);
+    setDoctors(safeDoctors);
+    setReviewsByDoctor(groupedReviews);
+    setReviewFormByDoctor((current) => ({
+      ...buildInitialForms(safeDoctors),
+      ...current,
+    }));
+  }, [apiCall, buildInitialForms, groupReviewsByDoctor]);
 
   useEffect(() => {
     const loadDoctorsAndReviews = async () => {
       setLoading(true);
       setError('');
       try {
-        const [doctorRows, reviewRows] = await Promise.all([
-          apiCall('/doctors'),
-          apiCall('/doctor-reviews'),
-        ]);
-
-        const safeDoctors = Array.isArray(doctorRows) ? doctorRows : [];
-        const groupedReviews = groupReviewsByDoctor(Array.isArray(reviewRows) ? reviewRows : []);
-        setDoctors(safeDoctors);
-        setReviewsByDoctor(groupedReviews);
-        setReviewFormByDoctor(buildInitialForms(safeDoctors, groupedReviews));
+        await reloadDoctorsAndReviews();
       } catch (loadError) {
         setError(loadError.message || 'Could not load doctors list.');
       } finally {
@@ -74,14 +126,24 @@ const PatientOverview = () => {
     };
 
     loadDoctorsAndReviews();
-  }, [apiCall, buildInitialForms, groupReviewsByDoctor, user?.userId]);
+  }, [reloadDoctorsAndReviews]);
 
   const handleReviewFieldChange = (doctorId, field, value) => {
     setReviewFormByDoctor((current) => ({
       ...current,
       [doctorId]: {
-        ...(current[doctorId] || { rating: '5', comment: '' }),
+        ...(current[doctorId] || emptyReviewForm),
         [field]: value,
+      },
+    }));
+  };
+
+  const clearReviewField = (doctorId, field) => {
+    setReviewFormByDoctor((current) => ({
+      ...current,
+      [doctorId]: {
+        ...(current[doctorId] || emptyReviewForm),
+        [field]: '',
       },
     }));
   };
@@ -93,47 +155,49 @@ const PatientOverview = () => {
     }));
   };
 
-  const handleSubmitReview = async (doctorId) => {
-    const doctorForm = reviewFormByDoctor[doctorId] || { rating: '5', comment: '' };
-    const rating = Number(doctorForm.rating);
-    const comment = String(doctorForm.comment || '').trim();
-
-    if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
-      setError('Rating must be between 1 and 5.');
-      return;
-    }
-
-    if (!comment) {
-      setError('Comment is required to submit a review.');
-      return;
-    }
-
+  const submitReview = async (doctorId, payload) => {
     setSubmittingDoctorId(doctorId);
     setError('');
     try {
       await apiCall(`/doctors/${doctorId}/reviews`, {
         method: 'POST',
-        body: JSON.stringify({ rating, comment }),
+        body: JSON.stringify(payload),
       });
-
-      const [doctorRows, reviewRows] = await Promise.all([
-        apiCall('/doctors'),
-        apiCall('/doctor-reviews'),
-      ]);
-      const safeDoctors = Array.isArray(doctorRows) ? doctorRows : [];
-      const groupedReviews = groupReviewsByDoctor(Array.isArray(reviewRows) ? reviewRows : []);
-      setDoctors(safeDoctors);
-      setReviewsByDoctor(groupedReviews);
-      setReviewFormByDoctor(buildInitialForms(safeDoctors, groupedReviews));
+      await reloadDoctorsAndReviews();
+      return true;
     } catch (submitError) {
       setError(submitError.message || 'Could not submit review.');
+      return false;
     } finally {
       setSubmittingDoctorId(null);
     }
   };
 
+  const handleRatingSelect = async (doctorId, value) => {
+    handleReviewFieldChange(doctorId, 'rating', value);
+    const ok = await submitReview(doctorId, { rating: Number(value) });
+    if (ok) {
+      clearReviewField(doctorId, 'rating');
+    }
+  };
+
+  const handleSubmitComment = async (doctorId) => {
+    const doctorForm = reviewFormByDoctor[doctorId] || emptyReviewForm;
+    const comment = String(doctorForm.comment || '').trim();
+
+    if (!comment) {
+      setError('Please write a comment before saving it.');
+      return;
+    }
+
+    const ok = await submitReview(doctorId, { comment });
+    if (ok) {
+      clearReviewField(doctorId, 'comment');
+    }
+  };
+
   return (
-    <div className="patient-overview">
+        <div className="patient-overview">
       <div className="patient-overview-hero">
         <h2>All Doctors</h2>
         <p>Browse every available doctor in the clinic.</p>
@@ -147,6 +211,13 @@ const PatientOverview = () => {
         <div className="patient-doctor-grid">
           {doctors.map((doctor) => (
             <div className="patient-doctor-card" key={doctor.id}>
+              {(() => {
+                const doctorComments = (reviewsByDoctor[Number(doctor.id)] || []).filter(
+                  (review) => String(review.comment || '').trim()
+                );
+
+                return (
+                  <>
               <div className="patient-doctor-photo-row">
                 {doctor.profileImage ? (
                   <img src={doctor.profileImage} alt={`${doctor.name} profile`} className="patient-doctor-photo" />
@@ -158,76 +229,73 @@ const PatientOverview = () => {
               <p className="patient-doctor-specialty">{doctor.specialty || '-'}</p>
               <div className="patient-doctor-line">
                 <strong>Rating:</strong> {Number(doctor.avgRating || 0).toFixed(1)} / 5
-                {' '}({Number(doctor.reviewsCount || 0)} reviews)
+                {' '}({Number(doctor.reviewsCount || 0)} ratings)
               </div>
               <div className="patient-doctor-line"><strong>Fee:</strong> ${Number(doctor.fee || 0)}</div>
               <div className="patient-doctor-line"><strong>Phone:</strong> {doctor.phone || '-'}</div>
-              <div className="patient-doctor-line"><strong>Status:</strong> {doctor.status || '-'}</div>
+              <div className="patient-doctor-line"><strong>Clinic Status:</strong> {getDoctorClinicStatus(doctor)}</div>
 
               <button
                 type="button"
                 className="patient-view-comments-btn"
                 onClick={() => toggleCommentsForDoctor(Number(doctor.id))}
               >
-                {expandedCommentsByDoctor[Number(doctor.id)] ? 'Hide Comments' : 'View Comments'}
+                {expandedCommentsByDoctor[Number(doctor.id)] ? 'Hide Feedback' : 'View Feedback'}
                 {' '}
-                ({(reviewsByDoctor[Number(doctor.id)] || []).length})
+                ({doctorComments.length})
               </button>
 
               {expandedCommentsByDoctor[Number(doctor.id)] && (
                 <div className="patient-doctor-reviews">
-                  <h4>Public Reviews</h4>
-                  {(reviewsByDoctor[Number(doctor.id)] || []).length ? (
-                    (reviewsByDoctor[Number(doctor.id)] || []).map((review) => (
+                  <h4>Patient Feedback</h4>
+                  {doctorComments.length ? (
+                    doctorComments.map((review) => (
                       <div className="patient-review-item" key={review.id}>
                         <div className="patient-review-head">
                           <strong>{review.patientName}</strong>
-                          <span>{review.rating}/5</span>
                         </div>
                         <p>{review.comment}</p>
                       </div>
                     ))
                   ) : (
-                    <div className="patient-review-empty">No reviews yet.</div>
+                    <div className="patient-review-empty">No feedback yet.</div>
                   )}
                 </div>
               )}
 
               {user?.role === 'patient' && (
                 <div className="patient-review-form">
-                  <h4>Add / Update Your Review</h4>
-                  <label htmlFor={`rating-${doctor.id}`}>Rating</label>
-                  <select
-                    id={`rating-${doctor.id}`}
-                    value={(reviewFormByDoctor[Number(doctor.id)] || { rating: '5' }).rating}
-                    onChange={(event) => handleReviewFieldChange(Number(doctor.id), 'rating', event.target.value)}
-                  >
-                    <option value="5">5 - Excellent</option>
-                    <option value="4">4 - Very Good</option>
-                    <option value="3">3 - Good</option>
-                    <option value="2">2 - Fair</option>
-                    <option value="1">1 - Poor</option>
-                  </select>
+                  <h4>Rate Or Comment</h4>
+                  <label id={`rating-${doctor.id}`}>Rate only</label>
+                  <StarRating
+                    value={(reviewFormByDoctor[Number(doctor.id)] || emptyReviewForm).rating}
+                    onChange={(value) => handleRatingSelect(Number(doctor.id), value)}
+                    disabled={submittingDoctorId === Number(doctor.id)}
+                    labelId={`rating-${doctor.id}`}
+                  />
 
-                  <label htmlFor={`comment-${doctor.id}`}>Comment</label>
+                  <label htmlFor={`comment-${doctor.id}`}>Comment only</label>
                   <textarea
                     id={`comment-${doctor.id}`}
                     rows="3"
-                    value={(reviewFormByDoctor[Number(doctor.id)] || { comment: '' }).comment}
+                    value={(reviewFormByDoctor[Number(doctor.id)] || emptyReviewForm).comment}
                     onChange={(event) => handleReviewFieldChange(Number(doctor.id), 'comment', event.target.value)}
-                    placeholder="Share your experience with this doctor"
+                    placeholder="Write a comment without rating if you want"
                   />
 
                   <button
                     type="button"
                     className="btn-primary"
                     disabled={submittingDoctorId === Number(doctor.id)}
-                    onClick={() => handleSubmitReview(Number(doctor.id))}
+                    onClick={() => handleSubmitComment(Number(doctor.id))}
                   >
-                    {submittingDoctorId === Number(doctor.id) ? 'Saving...' : 'Submit Review'}
+                    {submittingDoctorId === Number(doctor.id) ? 'Saving...' : 'Add Comment'}
                   </button>
                 </div>
               )}
+                  </>
+                );
+              })()}
             </div>
           ))}
         </div>
@@ -245,6 +313,13 @@ const PatientDashboard = () => {
       <aside className="patient-side-nav">
         <div className="patient-side-brand">Patient</div>
         <nav className="patient-side-links">
+          <NavLink
+            to="/patient"
+            end
+            className={({ isActive }) => `patient-side-link ${isActive ? 'active' : ''}`}
+          >
+            Home
+          </NavLink>
           <NavLink
             to="/patient/appointments"
             className={({ isActive }) => `patient-side-link ${isActive ? 'active' : ''}`}
