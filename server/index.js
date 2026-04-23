@@ -65,16 +65,7 @@ const parseJsonArray = (value) => {
 };
 
 const parseDuration = (value) => {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return Math.max(1, Math.round(value));
-  }
-
-  const matched = String(value || '').match(/\d+/);
-  if (!matched) {
-    return 30;
-  }
-
-  return Math.max(1, Number(matched[0]));
+  return 15;
 };
 
 const toIsoDate = (value) => {
@@ -165,6 +156,8 @@ const formatPatient = (row) => ({
   status: row.status,
   condition: row.latest_diagnosis || 'No diagnosis yet',
   nextVisit: row.next_visit || row.last_visit || 'TBD',
+  profileImage: row.profile_image || '',
+  profileImageName: row.profile_image_name || '',
 });
 
 const formatAppointment = (row) => ({
@@ -920,10 +913,22 @@ app.get('/api/patients', requireAuth, asyncHandler(async (req, res) => {
   const { doctorId, search } = req.query;
   const clauses = [];
   const params = [];
+  let scopedDoctorId = doctorId ? Number(doctorId) : null;
 
-  if (doctorId) {
-    clauses.push('p.assigned_doctor_id = ?');
-    params.push(Number(doctorId));
+  if (req.user.role === 'doctor') {
+    scopedDoctorId = Number(req.user.userId);
+  }
+
+  if (scopedDoctorId) {
+    clauses.push(
+      `EXISTS (
+        SELECT 1
+        FROM appointment ap
+        WHERE ap.patient_id = p.patient_id
+          AND ap.doctor_id = ?
+      )`
+    );
+    params.push(scopedDoctorId);
   }
 
   if (search) {
@@ -1105,7 +1110,7 @@ app.post('/api/appointments', requireAuth, asyncHandler(async (req, res) => {
     specialty,
     date,
     time,
-    duration = '30min',
+    duration = '15min',
     reason,
     status = 'pending',
     doctorFee,
@@ -1258,7 +1263,7 @@ app.patch('/api/appointments/:id', requireAuth, asyncHandler(async (req, res) =>
       updates.reason ?? existing.reason,
       updates.preFeeImage ?? existing.pre_fee_image,
       updates.preFeeImageName ?? existing.pre_fee_image_name,
-      updates.duration ? parseDuration(updates.duration) : existing.duration_minutes,
+      15,
       appointmentId,
     ]
   );
@@ -1568,6 +1573,8 @@ const checkDatabaseOnStartup = async () => {
     await ensureColumn('doctor', 'profile_image_name', 'VARCHAR(255) NULL');
     await ensureColumn('patient', 'profile_image', 'LONGTEXT NULL');
     await ensureColumn('patient', 'profile_image_name', 'VARCHAR(255) NULL');
+    await query('ALTER TABLE appointment MODIFY COLUMN duration_minutes SMALLINT UNSIGNED NOT NULL DEFAULT 15');
+    await query('UPDATE appointment SET duration_minutes = 15 WHERE duration_minutes <> 15');
     await query(
       `CREATE TABLE IF NOT EXISTS doctor_review (
         doctor_review_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

@@ -83,7 +83,7 @@ CREATE TABLE appointment (
   specialty VARCHAR(120) NOT NULL,
   appointment_date DATE NOT NULL,
   appointment_time VARCHAR(20) NOT NULL,
-  duration_minutes SMALLINT UNSIGNED NOT NULL DEFAULT 30,
+  duration_minutes SMALLINT UNSIGNED NOT NULL DEFAULT 15,
   reason TEXT NOT NULL,
   status ENUM('pending', 'confirmed', 'cancelled') NOT NULL DEFAULT 'pending',
   doctor_fee DECIMAL(10,2) NULL,

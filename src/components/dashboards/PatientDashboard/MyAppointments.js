@@ -22,6 +22,18 @@ const getWeekdayFromDate = (dateString) => {
   return date.toLocaleDateString('en-US', { weekday: 'long' });
 };
 
+const formatClinicTimeRange = (times) => {
+  if (!Array.isArray(times) || !times.length) {
+    return 'Not set';
+  }
+
+  if (times.length === 1) {
+    return times[0];
+  }
+
+  return `From: ${times[0]} to ${times[times.length - 1]}`;
+};
+
 const compressImageToDataUrl = (file) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -300,7 +312,7 @@ const MyAppointments = () => {
           time: bookingForm.time,
           reason: bookingForm.reason,
           status: 'pending',
-          duration: '30min',
+          duration: '15min',
           doctorFee: selectedDoctorFee,
           preFeeImage: bookingForm.preFeeImage,
           preFeeImageName: bookingForm.preFeeImageName,
@@ -408,6 +420,10 @@ const MyAppointments = () => {
 
         <div className="doctor-availability-note">
           Available Days: <strong>{selectedDoctorSchedule.days.length ? selectedDoctorSchedule.days.join(', ') : 'Not set'}</strong>
+        </div>
+
+        <div className="doctor-availability-note">
+          Clinic Times: <strong>{formatClinicTimeRange(selectedDoctorSchedule.times)}</strong>
         </div>
 
         <button type="submit" className="btn-primary">

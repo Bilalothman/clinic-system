@@ -40,6 +40,35 @@
   color: #1e293b;
 }
 
+.patient-widget-photo-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.85rem;
+}
+
+.patient-widget-photo,
+.patient-widget-photo-fallback {
+  width: 72px;
+  height: 72px;
+  border-radius: 999px;
+}
+
+.patient-widget-photo {
+  object-fit: cover;
+  border: 2px solid rgba(102, 126, 234, 0.14);
+  background: #fff;
+}
+
+.patient-widget-photo-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #fff;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
 .condition {
   color: #64748b;
   font-size: 0.95rem;
@@ -54,8 +83,73 @@
   margin-bottom: 1rem;
 }
 
+.patient-widget-info {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+  text-align: left;
+  color: #475569;
+  font-size: 0.9rem;
+}
+
 .btn-full {
   width: 100%;
+}
+
+.patient-detail-panel {
+  margin-top: 1.5rem;
+}
+
+.patient-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.patient-detail-photo-wrap {
+  flex-shrink: 0;
+}
+
+.patient-detail-photo,
+.patient-detail-photo-fallback {
+  width: 84px;
+  height: 84px;
+  border-radius: 999px;
+}
+
+.patient-detail-photo {
+  object-fit: cover;
+  border: 2px solid rgba(102, 126, 234, 0.18);
+  background: #fff;
+}
+
+.patient-detail-photo-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #fff;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.patient-detail-identity h4 {
+  margin: 0 0 0.25rem;
+  color: #0f172a;
+}
+
+.patient-detail-identity p {
+  margin: 0;
+  color: #64748b;
+}
+
+.patient-info-grid {
+  margin-top: 0.9rem;
+}
+
+.patient-info-grid-secondary {
+  margin-top: 0.5rem;
 }
 
 .patient-summary {
@@ -72,4 +166,11 @@
   border: 1px dashed rgba(148, 163, 184, 0.45);
   color: #64748b;
   text-align: center;
+}
+
+@media (max-width: 640px) {
+  .patient-detail-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }

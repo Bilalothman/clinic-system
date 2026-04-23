@@ -35,7 +35,7 @@ const Appointments = ({ showPendingOnly = false }) => {
     patient: '',
     date: user?.loginDate || getLocalIsoDate(),
     time: DOCTOR_TIME_SLOTS[0],
-    duration: '30min',
+    duration: '15min',
     specialty: 'General',
     reason: '',
     status: 'confirmed',
@@ -117,7 +117,7 @@ const Appointments = ({ showPendingOnly = false }) => {
       patient: '',
       date: filterDate || user?.loginDate || getLocalIsoDate(),
       time: DOCTOR_TIME_SLOTS[0],
-      duration: '30min',
+      duration: '15min',
       specialty: doctorProfile?.specialty || 'General',
       reason: '',
       status: 'confirmed',
@@ -238,16 +238,12 @@ const Appointments = ({ showPendingOnly = false }) => {
 
             <div className="create-field">
               <label htmlFor="appointment-duration">Duration</label>
-              <select
+              <input
                 id="appointment-duration"
-                value={newAppointmentForm.duration}
-                onChange={(e) => handleFormChange('duration', e.target.value)}
-              >
-                <option value="15min">15min</option>
-                <option value="30min">30min</option>
-                <option value="45min">45min</option>
-                <option value="60min">60min</option>
-              </select>
+                type="text"
+                value="15min"
+                readOnly
+              />
             </div>
 
             <div className="create-field">

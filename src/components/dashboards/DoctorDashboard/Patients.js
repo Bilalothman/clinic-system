@@ -1,27 +1,47 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../../../hooks/useAuth';
 import { useApi } from '../../../hooks/useApi';
 import './Patients.css';
 
+const formatDisplayDate = (value) => {
+  if (!value || value === 'TBD' || value === 'N/A') {
+    return value || '-';
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return String(value);
+  }
+
+  return parsed.toISOString().slice(0, 10);
+};
+
+const getInitials = (name) => String(name || 'P')
+  .trim()
+  .split(/\s+/)
+  .slice(0, 2)
+  .map((part) => part[0]?.toUpperCase() || '')
+  .join('') || 'P';
+
 const Patients = () => {
+  const { user } = useAuth();
   const { apiCall } = useApi();
   const [patientList, setPatientList] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedPatient, setSelectedPatient] = useState(null);
 
   useEffect(() => {
     const loadPatients = async () => {
       try {
-        const rows = await apiCall('/patients');
+        const doctorQuery = user?.userId ? `?doctorId=${user.userId}` : '';
+        const rows = await apiCall(`/patients${doctorQuery}`);
         setPatientList(rows || []);
-        setSelectedPatient((rows || [])[0] || null);
       } catch (error) {
         setPatientList([]);
-        setSelectedPatient(null);
       }
     };
 
     loadPatients();
-  }, [apiCall]);
+  }, [apiCall, user?.userId]);
 
   const filteredPatients = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -36,17 +56,6 @@ const Patients = () => {
       )
     );
   }, [patientList, searchTerm]);
-
-  useEffect(() => {
-    if (!filteredPatients.length) {
-      setSelectedPatient(null);
-      return;
-    }
-
-    if (!selectedPatient || !filteredPatients.some((patient) => patient.id === selectedPatient.id)) {
-      setSelectedPatient(filteredPatients[0]);
-    }
-  }, [filteredPatients, selectedPatient]);
 
   return (
     <div className="card fade-in-left">
@@ -63,12 +72,24 @@ const Patients = () => {
       <div className="patients-grid">
         {filteredPatients.map((patient) => (
           <div key={patient.id} className="patient-widget">
+            <div className="patient-widget-photo-wrap">
+              {patient.profileImage ? (
+                <img src={patient.profileImage} alt={`${patient.name} profile`} className="patient-widget-photo" />
+              ) : (
+                <div className="patient-widget-photo-fallback">{getInitials(patient.name)}</div>
+              )}
+            </div>
             <h4>{patient.name}</h4>
             <p className="condition">{patient.condition}</p>
-            <span className="next-visit">Next: {patient.nextVisit}</span>
-            <button type="button" className="btn-primary btn-full" onClick={() => setSelectedPatient(patient)}>
-              View Records
-            </button>
+            <span className="next-visit">Next: {formatDisplayDate(patient.nextVisit)}</span>
+            <div className="patient-widget-info">
+              <span><strong>DOB:</strong> {formatDisplayDate(patient.dob)}</span>
+              <span><strong>Age:</strong> {patient.age || '-'}</span>
+              <span><strong>Gender:</strong> {patient.gender || '-'}</span>
+              <span><strong>Phone:</strong> {patient.phone || '-'}</span>
+              <span><strong>Email:</strong> {patient.email || '-'}</span>
+              <span><strong>Address:</strong> {patient.address || '-'}</span>
+            </div>
           </div>
         ))}
       </div>
@@ -77,16 +98,6 @@ const Patients = () => {
         <div className="empty-state">No patients matched your search.</div>
       )}
 
-      {selectedPatient && (
-        <div className="detail-panel">
-          <h4>{selectedPatient.name}</h4>
-          <div className="detail-grid">
-            <span><strong>Condition:</strong> {selectedPatient.condition}</span>
-            <span><strong>Next visit:</strong> {selectedPatient.nextVisit}</span>
-          </div>
-          <p className="patient-summary">{selectedPatient.notes}</p>
-        </div>
-      )}
     </div>
   );
 };
