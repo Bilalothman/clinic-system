@@ -1,4 +1,20 @@
-.stats-chart-grid {
+.manager-stats-state {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  color: #334155;
+  font-weight: 600;
+  margin-top: 1rem;
+}
+
+.manager-stats-error {
+  border-color: #fecaca;
+  background: #fff1f2;
+  color: #b91c1c;
+}
+
+.manager-chart-grid {
   margin: 2rem 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -6,7 +22,7 @@
   width: 100%;
 }
 
-.metric-chart-card {
+.manager-chart-card {
   width: 100%;
   min-width: 0;
   border-radius: 20px;
@@ -17,7 +33,7 @@
   padding: 1.2rem;
 }
 
-.metric-chart-header {
+.manager-chart-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -26,28 +42,24 @@
   margin-bottom: 1rem;
 }
 
-.metric-chart-header h3 {
+.manager-chart-header h3 {
   margin: 0;
   font-size: 1rem;
   color: #1f2937;
 }
 
-.metric-current-value {
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: #334155;
-}
-
-.metric-bars {
+.manager-metric-bars {
   height: 170px;
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(46px, 1fr));
   align-items: end;
   gap: 0.5rem;
   width: 100%;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
 }
 
-.metric-bar-column {
+.manager-metric-bar-column {
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -56,26 +68,33 @@
   gap: 0.35rem;
 }
 
-.metric-bar-fill {
+.manager-metric-bar-value {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #334155;
+  line-height: 1;
+}
+
+.manager-metric-bar-fill {
   width: 100%;
   min-height: 14px;
   border-radius: 10px 10px 6px 6px;
   background: linear-gradient(180deg, #3b82f6, #1d4ed8);
 }
 
-.metric-green .metric-bar-fill {
+.manager-metric-green .manager-metric-bar-fill {
   background: linear-gradient(180deg, #10b981, #047857);
 }
 
-.metric-amber .metric-bar-fill {
+.manager-metric-amber .manager-metric-bar-fill {
   background: linear-gradient(180deg, #f59e0b, #d97706);
 }
 
-.metric-red .metric-bar-fill {
+.manager-metric-red .manager-metric-bar-fill {
   background: linear-gradient(180deg, #ef4444, #b91c1c);
 }
 
-.metric-bar-month {
+.manager-metric-bar-month {
   font-size: 0.78rem;
   font-weight: 600;
   color: #64748b;
@@ -100,19 +119,13 @@
 }
 
 @media (max-width: 768px) {
-  .stats-chart-grid {
+  .manager-chart-grid {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 640px) {
-  .metric-bars {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    height: auto;
-    row-gap: 0.9rem;
-  }
-
-  .metric-bar-column {
-    min-height: 120px;
+  .manager-metric-bars {
+    min-width: 430px;
   }
 }

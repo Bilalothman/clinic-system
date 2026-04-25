@@ -14,6 +14,14 @@ const formatValue = (value) => {
   return value;
 };
 
+const formatDateOnly = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return '-';
+  }
+
+  return String(value).slice(0, 10);
+};
+
 const compressImageToDataUrl = (file) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -209,7 +217,7 @@ const MyProfile = ({ title = 'My Profile' }) => {
   };
 
   const handleSaveProfile = async () => {
-    if (user?.role !== 'doctor' && user?.role !== 'patient') {
+    if (user?.role !== 'doctor' && user?.role !== 'patient' && user?.role !== 'manager') {
       return;
     }
 
@@ -286,7 +294,7 @@ const MyProfile = ({ title = 'My Profile' }) => {
         </div>
         <div className="profile-item">
           <span className="profile-label">Date Of Birth</span>
-          <span className="profile-value">{formatValue(profile.dob)}</span>
+          <span className="profile-value">{formatDateOnly(profile.dob)}</span>
         </div>
         <div className="profile-item profile-item-wide">
           <span className="profile-label">Address</span>
@@ -298,7 +306,7 @@ const MyProfile = ({ title = 'My Profile' }) => {
         </div>
       </div>
 
-      {(user?.role === 'doctor' || user?.role === 'patient') && (
+      {(user?.role === 'doctor' || user?.role === 'patient' || user?.role === 'manager') && (
         <div className="doctor-settings-panel">
           <div className="doctor-profile-edit-panel">
             <h4>Profile Details</h4>

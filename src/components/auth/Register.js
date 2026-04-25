@@ -64,7 +64,7 @@ const Register = () => {
 
         {error && <div className="error-message">{error}</div>}
 
-        <form onSubmit={handleSubmit} className="auth-form">
+        <form onSubmit={handleSubmit} className="auth-form" autoComplete="off">
           <div className="form-row">
             <div className="form-group">
               <label>Full Name</label>
@@ -72,6 +72,7 @@ const Register = () => {
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                autoComplete="off"
                 required
                 placeholder="John Doe"
               />
@@ -82,6 +83,7 @@ const Register = () => {
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                autoComplete="off"
                 required
                 placeholder="john@example.com"
               />
@@ -95,6 +97,7 @@ const Register = () => {
                 type="tel"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                autoComplete="off"
                 required
                 placeholder="+1-234-567-8900"
               />
@@ -105,6 +108,7 @@ const Register = () => {
                 type="date"
                 value={formData.dob}
                 onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
+                autoComplete="off"
                 required
               />
             </div>
@@ -117,6 +121,7 @@ const Register = () => {
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
               rows="3"
               placeholder="123 Main St, City, State 12345"
+              autoComplete="off"
               required
             />
           </div>
@@ -127,6 +132,7 @@ const Register = () => {
               <select
                 value={formData.gender}
                 onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                autoComplete="off"
                 required
               >
                 <option value="">Select Gender</option>
@@ -141,6 +147,7 @@ const Register = () => {
                 type="password"
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                autoComplete="new-password"
                 required
                 placeholder="Create a strong password"
               />

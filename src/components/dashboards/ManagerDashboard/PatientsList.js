@@ -4,6 +4,8 @@ import './PatientsList.css';
 
 const emptyPatient = {
   name: '',
+  email: '',
+  password: '',
   age: '',
   dob: '',
   phone: '',
@@ -88,6 +90,8 @@ const PatientsList = () => {
     setEditingPatientId(patient.id);
     setPatientForm({
       name: patient.name,
+      email: patient.email || '',
+      password: '',
       age: String(patient.age || ''),
       dob: patient.dob || '',
       phone: patient.phone,
@@ -131,17 +135,27 @@ const PatientsList = () => {
     const selectedDoctor = doctors.find((doctor) => doctor.name === patientForm.doctor);
     const normalizedPatient = {
       ...patientForm,
+      name: patientForm.name.trim(),
+      email: patientForm.email.trim(),
       age: Number(patientForm.age),
       notes: patientForm.notes.trim(),
       assignedDoctorId: selectedDoctor?.id || null,
-      email: editingPatientId ? (patients.find((item) => item.id === editingPatientId)?.email || undefined) : undefined,
     };
 
     try {
       if (editingPatientId) {
+        const payload = {
+          ...normalizedPatient,
+          email: normalizedPatient.email || (patients.find((item) => item.id === editingPatientId)?.email || undefined),
+        };
+
+        if (!String(normalizedPatient.password || '').trim()) {
+          delete payload.password;
+        }
+
         const updated = await apiCall(`/patients/${editingPatientId}`, {
           method: 'PUT',
-          body: JSON.stringify(normalizedPatient),
+          body: JSON.stringify(payload),
         });
 
         const updatedPatients = patients.map((patient) =>
@@ -153,11 +167,7 @@ const PatientsList = () => {
       } else {
         const created = await apiCall('/patients', {
           method: 'POST',
-          body: JSON.stringify({
-            ...normalizedPatient,
-            email: `${normalizedPatient.name.toLowerCase().replace(/\s+/g, '.')}+${Date.now()}@patient.local`,
-            password: 'patient123',
-          }),
+          body: JSON.stringify(normalizedPatient),
         });
 
         const withId = { ...created, id: created.id || nextPatientId, lastVisit: created.lastVisit || 'N/A' };
@@ -184,14 +194,31 @@ const PatientsList = () => {
 
       <div className="action-feedback">{feedback}</div>
 
-      <form className="patient-form" onSubmit={handleSavePatient}>
+      <form className="patient-form" onSubmit={handleSavePatient} autoComplete="off">
         <div className="patient-form-grid">
           <input
             type="text"
             placeholder="Patient Name"
             value={patientForm.name}
             onChange={(e) => handleFormChange('name', e.target.value)}
+            autoComplete="off"
             required
+          />
+          <input
+            type="email"
+            placeholder="Email"
+            value={patientForm.email}
+            onChange={(e) => handleFormChange('email', e.target.value)}
+            autoComplete="new-password"
+            required
+          />
+          <input
+            type="password"
+            placeholder={editingPatientId ? 'Password (leave blank to keep current)' : 'Password'}
+            value={patientForm.password}
+            onChange={(e) => handleFormChange('password', e.target.value)}
+            autoComplete="new-password"
+            required={!editingPatientId}
           />
           <input
             type="number"
@@ -199,6 +226,7 @@ const PatientsList = () => {
             placeholder="Age"
             value={patientForm.age}
             onChange={(e) => handleFormChange('age', e.target.value)}
+            autoComplete="off"
             required
           />
           <input
@@ -206,12 +234,14 @@ const PatientsList = () => {
             placeholder="Phone"
             value={patientForm.phone}
             onChange={(e) => handleFormChange('phone', e.target.value)}
+            autoComplete="off"
             required
           />
           <input
             type="date"
             value={patientForm.dob}
             onChange={(e) => handleFormChange('dob', e.target.value)}
+            autoComplete="off"
             required
           />
           <input
@@ -219,6 +249,7 @@ const PatientsList = () => {
             placeholder="Doctor"
             value={patientForm.doctor}
             onChange={(e) => handleFormChange('doctor', e.target.value)}
+            autoComplete="off"
             required
           />
           <input
@@ -226,6 +257,7 @@ const PatientsList = () => {
             placeholder="Notes"
             value={patientForm.notes}
             onChange={(e) => handleFormChange('notes', e.target.value)}
+            autoComplete="off"
             required
           />
         </div>

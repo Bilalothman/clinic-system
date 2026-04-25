@@ -88,6 +88,14 @@ const toDateValue = (value) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
+const toDateOnlyString = (value) => {
+  if (!value) {
+    return value || null;
+  }
+
+  return String(value).slice(0, 10);
+};
+
 const hasBookedAppointment = async ({ doctorId, date, time, excludeAppointmentId = null }) => {
   const params = [Number(doctorId), date, time];
   let sql = `
@@ -121,7 +129,7 @@ const formatDoctor = (row) => ({
   availableTimes: parseJsonArray(row.available_times),
   role: row.role,
   address: row.address,
-  dob: row.dob,
+  dob: toDateOnlyString(row.dob),
   gender: row.gender,
   profileImage: row.profile_image || '',
   profileImageName: row.profile_image_name || '',
@@ -134,6 +142,8 @@ const formatDoctorReview = (row) => ({
   doctorId: row.doctor_id,
   patientId: row.patient_id,
   patientName: row.patient_name || 'Patient',
+  patientProfileImage: row.patient_profile_image || '',
+  patientProfileImageName: row.patient_profile_image_name || '',
   rating: row.rating === null || row.rating === undefined ? null : Number(row.rating),
   comment: row.comment || '',
   createdAt: row.created_at,
@@ -146,7 +156,7 @@ const formatPatient = (row) => ({
   email: row.email,
   phone: row.phone,
   address: row.address,
-  dob: row.dob,
+  dob: toDateOnlyString(row.dob),
   gender: row.gender,
   age: row.age,
   assignedDoctorId: row.assigned_doctor_id,
@@ -271,7 +281,7 @@ const buildProfile = async (role, userId) => {
       email: patient.email,
       phone: patient.phone,
       address: patient.address,
-      dob: patient.dob,
+      dob: toDateOnlyString(patient.dob),
       gender: patient.gender,
       avatar: patient.profile_image || '',
       avatarName: patient.profile_image_name || '',
@@ -288,7 +298,7 @@ const buildProfile = async (role, userId) => {
     email: doctor.email,
     phone: doctor.phone,
     address: doctor.address,
-    dob: doctor.dob,
+    dob: toDateOnlyString(doctor.dob),
     gender: doctor.gender,
     avatar: doctor.profile_image || '',
     avatarName: doctor.profile_image_name || '',
@@ -682,6 +692,184 @@ app.get('/api/doctor-dashboard/stats', requireAuth, asyncHandler(async (req, res
   });
 }));
 
+app.get('/api/manager-dashboard/stats', requireAuth, requireRoles('manager'), asyncHandler(async (req, res) => {
+  const requestedDays = Number(req.query?.days || 7);
+  const days = Number.isFinite(requestedDays) ? Math.min(Math.max(Math.round(requestedDays), 1), 30) : 7;
+
+  const [latestDoctorRows, latestPatientRows, latestAppointmentRows, latestRevenueRows] = await Promise.all([
+    query(
+      `SELECT CURRENT_DATE() AS latest_date`,
+      []
+    ),
+    query(
+      `SELECT MAX(appointment_date) AS latest_date
+       FROM appointment
+       WHERE status IN ('pending', 'confirmed')`,
+      []
+    ),
+    query(
+      `SELECT MAX(appointment_date) AS latest_date
+       FROM appointment
+       WHERE status IN ('pending', 'confirmed')`,
+      []
+    ),
+    query(
+      `SELECT MAX(COALESCE(paid_date, issued_date)) AS latest_date
+       FROM bills
+       WHERE bill_status = 'paid'`,
+      []
+    ),
+  ]);
+
+  const latestDates = [
+    toDateValue(latestDoctorRows[0]?.latest_date),
+    toDateValue(latestPatientRows[0]?.latest_date),
+    toDateValue(latestAppointmentRows[0]?.latest_date),
+    toDateValue(latestRevenueRows[0]?.latest_date),
+  ].filter(Boolean);
+
+  const today = toDateValue(new Date());
+  const endDate = today || (latestDates.length
+    ? latestDates.reduce((maxDate, current) => (current > maxDate ? current : maxDate))
+    : new Date());
+  const startDate = new Date(endDate);
+  startDate.setDate(endDate.getDate() - (days - 1));
+  const startIso = toIsoDate(startDate);
+  const endIso = toIsoDate(endDate);
+
+  const [doctorAvailabilityRows, patientAggRows, appointmentAggRows, revenueAggRows] = await Promise.all([
+    query(
+      `SELECT available_days
+       FROM doctor
+       WHERE role = 'doctor'`,
+      []
+    ),
+    query(
+      `SELECT
+        DATE_FORMAT(appointment_date, '%Y-%m-%d') AS day,
+        COUNT(DISTINCT patient_id) AS patients_count
+       FROM appointment
+       WHERE appointment_date BETWEEN ? AND ?
+         AND status IN ('pending', 'confirmed')
+       GROUP BY appointment_date`,
+      [startIso, endIso]
+    ),
+    query(
+      `SELECT
+        DATE_FORMAT(appointment_date, '%Y-%m-%d') AS day,
+        COUNT(*) AS appointments_count
+       FROM appointment
+       WHERE appointment_date BETWEEN ? AND ?
+         AND status = 'confirmed'
+       GROUP BY appointment_date`,
+      [startIso, endIso]
+    ),
+    query(
+      `SELECT
+        DATE_FORMAT(COALESCE(paid_date, issued_date), '%Y-%m-%d') AS day,
+        SUM(amount) AS revenue_total
+       FROM bills
+       WHERE bill_status = 'paid'
+         AND COALESCE(paid_date, issued_date) BETWEEN ? AND ?
+       GROUP BY COALESCE(paid_date, issued_date)`,
+      [startIso, endIso]
+    ),
+  ]);
+
+  const [doctorsTotalRows, patientsTotalRows, appointmentsTotalRows, revenueTotalRows] = await Promise.all([
+    query(
+      `SELECT COUNT(*) AS total
+       FROM doctor
+       WHERE role = 'doctor'`,
+      []
+    ),
+    query(
+      `SELECT COUNT(DISTINCT patient_id) AS total
+       FROM appointment
+       WHERE status IN ('pending', 'confirmed')`,
+      []
+    ),
+    query(
+      `SELECT COUNT(*) AS total
+       FROM appointment
+       WHERE status = 'confirmed'`,
+      []
+    ),
+    query(
+      `SELECT COALESCE(SUM(amount), 0) AS total
+       FROM bills
+       WHERE bill_status = 'paid'`,
+      []
+    ),
+  ]);
+
+  const weekdayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const doctorsByWeekday = weekdayLabels.reduce((accumulator, day) => ({
+    ...accumulator,
+    [day]: 0,
+  }), {});
+
+  doctorAvailabilityRows.forEach((row) => {
+    const availableDays = parseJsonArray(row.available_days);
+    availableDays.forEach((day) => {
+      if (Object.prototype.hasOwnProperty.call(doctorsByWeekday, day)) {
+        doctorsByWeekday[day] += 1;
+      }
+    });
+  });
+
+  const patientsByDay = {};
+  patientAggRows.forEach((row) => {
+    patientsByDay[row.day] = Number(row.patients_count || 0);
+  });
+
+  const appointmentsByDay = {};
+  appointmentAggRows.forEach((row) => {
+    appointmentsByDay[row.day] = Number(row.appointments_count || 0);
+  });
+
+  const revenueByDay = {};
+  revenueAggRows.forEach((row) => {
+    revenueByDay[row.day] = Number(row.revenue_total || 0);
+  });
+
+  const timeline = [];
+  const metricDoctors = [];
+  const metricPatients = [];
+  const metricAppointments = [];
+  const metricRevenue = [];
+
+  for (let offset = 0; offset < days; offset += 1) {
+    const dayDate = new Date(startDate);
+    dayDate.setDate(startDate.getDate() + offset);
+    const dayIso = toIsoDate(dayDate);
+    const weekdayName = dayDate.toLocaleDateString('en-US', { weekday: 'long' });
+    timeline.push(dayIso);
+    metricDoctors.push(doctorsByWeekday[weekdayName] || 0);
+    metricPatients.push(patientsByDay[dayIso] || 0);
+    metricAppointments.push(appointmentsByDay[dayIso] || 0);
+    metricRevenue.push(revenueByDay[dayIso] || 0);
+  }
+
+  res.json({
+    from: startIso,
+    to: endIso,
+    days: timeline,
+    metrics: {
+      doctors: metricDoctors,
+      patients: metricPatients,
+      appointments: metricAppointments,
+      revenue: metricRevenue,
+    },
+    totals: {
+      doctors: Number(doctorsTotalRows[0]?.total || 0),
+      patients: Number(patientsTotalRows[0]?.total || 0),
+      appointments: Number(appointmentsTotalRows[0]?.total || 0),
+      revenue: Number(revenueTotalRows[0]?.total || 0),
+    },
+  });
+}));
+
 app.get('/api/doctor-reviews', requireAuth, asyncHandler(async (req, res) => {
   const doctorId = req.query?.doctorId ? Number(req.query.doctorId) : null;
   const params = [];
@@ -695,7 +883,9 @@ app.get('/api/doctor-reviews', requireAuth, asyncHandler(async (req, res) => {
   const rows = await query(
     `SELECT
       dr.*,
-      p.full_name AS patient_name
+      p.full_name AS patient_name,
+      p.profile_image AS patient_profile_image,
+      p.profile_image_name AS patient_profile_image_name
      FROM doctor_review dr
      INNER JOIN patient p ON p.patient_id = dr.patient_id
      ${whereSql}
@@ -971,7 +1161,7 @@ app.post('/api/patients', requireAuth, requireRoles('manager'), asyncHandler(asy
   const {
     name,
     email,
-    password = 'patient123',
+    password,
     phone,
     address = null,
     dob = null,
@@ -981,17 +1171,24 @@ app.post('/api/patients', requireAuth, requireRoles('manager'), asyncHandler(asy
     notes = '',
   } = req.body || {};
 
-  if (!name || !phone) {
-    res.status(400).json({ message: 'Patient name and phone are required.' });
+  if (!name || !phone || !email || !password) {
+    res.status(400).json({ message: 'Patient name, phone, email, and password are required.' });
     return;
   }
 
-  const safeEmail = email || `patient.${Date.now()}@local.demo`;
+  const doctorEmailMatch = await query('SELECT doctor_id FROM doctor WHERE LOWER(email) = LOWER(?) LIMIT 1', [email]);
+  const patientEmailMatch = await query('SELECT patient_id FROM patient WHERE LOWER(email) = LOWER(?) LIMIT 1', [email]);
+
+  if (doctorEmailMatch[0] || patientEmailMatch[0]) {
+    res.status(409).json({ message: 'Patient email already exists.' });
+    return;
+  }
+
   const insert = await query(
     `INSERT INTO patient
       (full_name, email, password, phone, address, dob, gender, age, assigned_doctor_id, notes, status)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
-    [name, safeEmail, password, phone, address, dob, gender, age, assignedDoctorId, notes]
+    [name, String(email).trim(), password, phone, address, dob, gender, age, assignedDoctorId, notes]
   );
 
   const rows = await query(

@@ -130,14 +130,14 @@ const DoctorsManagement = () => {
 
       <div className="action-feedback">{feedback}</div>
 
-      <form onSubmit={handleAddDoctor} className="add-doctor-form">
+      <form onSubmit={handleAddDoctor} className="add-doctor-form" autoComplete="off">
         <div className="form-grid">
-          <input placeholder="Doctor Name" value={newDoctor.name} onChange={(e) => handleChange('name', e.target.value)} required />
-          <input placeholder="Specialty" value={newDoctor.specialty} onChange={(e) => handleChange('specialty', e.target.value)} required />
-          <input placeholder="Phone" value={newDoctor.phone} onChange={(e) => handleChange('phone', e.target.value)} required />
-          <input type="email" placeholder="Email" value={newDoctor.email} onChange={(e) => handleChange('email', e.target.value)} required />
-          <input type="password" placeholder="Password" value={newDoctor.password} onChange={(e) => handleChange('password', e.target.value)} required />
-          <input type="number" min="1" placeholder="Consultation Fee" value={newDoctor.fee} onChange={(e) => handleChange('fee', e.target.value)} required />
+          <input autoComplete="off" placeholder="Doctor Name" value={newDoctor.name} onChange={(e) => handleChange('name', e.target.value)} required />
+          <input autoComplete="off" placeholder="Specialty" value={newDoctor.specialty} onChange={(e) => handleChange('specialty', e.target.value)} required />
+          <input autoComplete="off" placeholder="Phone" value={newDoctor.phone} onChange={(e) => handleChange('phone', e.target.value)} required />
+          <input autoComplete="new-password" type="email" placeholder="Email" value={newDoctor.email} onChange={(e) => handleChange('email', e.target.value)} required />
+          <input autoComplete="new-password" type="password" placeholder="Password" value={newDoctor.password} onChange={(e) => handleChange('password', e.target.value)} required />
+          <input autoComplete="off" type="number" min="1" placeholder="Consultation Fee" value={newDoctor.fee} onChange={(e) => handleChange('fee', e.target.value)} required />
         </div>
 
         <div className="form-actions">

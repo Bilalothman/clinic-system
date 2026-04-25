@@ -6,6 +6,7 @@ const Sidebar = ({ role }) => {
   const location = useLocation();
 
   const managerLinks = [
+    { path: '/manager', icon: 'HM', label: 'Home', exact: true },
     { path: '/manager/doctors', icon: 'DR', label: 'Doctors' },
     { path: '/manager/patients', icon: 'PT', label: 'Patients' },
     { path: '/manager/appointments', icon: 'AP', label: 'Appointments' },
@@ -13,6 +14,7 @@ const Sidebar = ({ role }) => {
   ];
 
   const doctorLinks = [
+    { path: '/doctor', icon: 'HM', label: 'Home', exact: true },
     { path: '/doctor/appointments', icon: 'AP', label: 'Appointments' },
     { path: '/doctor/patients', icon: 'PT', label: 'Patients' },
     { path: '/doctor/records', icon: 'MR', label: 'Records' },
@@ -31,6 +33,14 @@ const Sidebar = ({ role }) => {
     patient: patientLinks,
   }[role];
 
+  const isActiveLink = (link) => {
+    if (link.exact) {
+      return location.pathname === link.path;
+    }
+
+    return location.pathname.startsWith(link.path);
+  };
+
   return (
     <aside className="sidebar">
       <div className="sidebar-content">
@@ -42,7 +52,7 @@ const Sidebar = ({ role }) => {
             <Link
               key={index}
               to={link.path}
-              className={`nav-link ${location.pathname.startsWith(link.path) ? 'active' : ''}`}
+              className={`nav-link ${isActiveLink(link) ? 'active' : ''}`}
             >
               <span className="nav-icon">{link.icon}</span>
               <span className="nav-label">{link.label}</span>

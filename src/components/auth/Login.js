@@ -57,13 +57,14 @@ const Login = () => {
 
         {error && <div className="error-message">{error}</div>}
 
-        <form onSubmit={handleSubmit} className="auth-form">
+        <form onSubmit={handleSubmit} className="auth-form" autoComplete="off">
           <div className="form-group">
             <label>Email</label>
             <input
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              autoComplete="off"
               required
               placeholder="Enter your email"
             />
@@ -74,6 +75,7 @@ const Login = () => {
               type="password"
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              autoComplete="new-password"
               required
               placeholder="Enter your password"
             />
