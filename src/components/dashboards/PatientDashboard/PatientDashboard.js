@@ -6,6 +6,7 @@ import Header from '../../common/Header';
 import MyProfile from '../../common/MyProfile';
 import MyAppointments from './MyAppointments';
 import MyRecords from './MyRecords';
+import ContactUs from './ContactUs';
 import './PatientDashboard.css';
 
 const StarRating = ({ value, onChange, disabled = false, labelId }) => (
@@ -67,6 +68,10 @@ const PatientOverview = () => {
   const [expandedCommentsByDoctor, setExpandedCommentsByDoctor] = useState({});
   const [reviewFormByDoctor, setReviewFormByDoctor] = useState({});
   const [submittingDoctorId, setSubmittingDoctorId] = useState(null);
+  const [deletingReviewId, setDeletingReviewId] = useState(null);
+  const [editingReviewId, setEditingReviewId] = useState(null);
+  const [editCommentText, setEditCommentText] = useState('');
+  const [savingReviewId, setSavingReviewId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const getInitials = (name) => String(name || 'D')
@@ -196,6 +201,67 @@ const PatientOverview = () => {
     }
   };
 
+  const handleStartEditComment = (review) => {
+    setEditingReviewId(review.id);
+    setEditCommentText(review.comment || '');
+    setError('');
+  };
+
+  const handleCancelEditComment = () => {
+    setEditingReviewId(null);
+    setEditCommentText('');
+  };
+
+  const handleSaveEditedComment = async (reviewId) => {
+    const comment = editCommentText.trim();
+
+    if (!comment) {
+      setError('Please write a comment before saving it.');
+      return;
+    }
+
+    setSavingReviewId(reviewId);
+    setError('');
+
+    try {
+      await apiCall(`/doctor-reviews/${reviewId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ comment }),
+      });
+      setEditingReviewId(null);
+      setEditCommentText('');
+      await reloadDoctorsAndReviews();
+    } catch (saveError) {
+      const message = saveError.message || '';
+      setError(
+        message.includes('404 Not Found')
+          ? 'Comment edit is not available yet. Restart the API server and try again.'
+          : message || 'Could not update comment.'
+      );
+    } finally {
+      setSavingReviewId(null);
+    }
+  };
+
+  const handleDeleteComment = async (reviewId) => {
+    const shouldDelete = window.confirm('Delete this comment?');
+    if (!shouldDelete) {
+      return;
+    }
+
+    setDeletingReviewId(reviewId);
+    setError('');
+
+    try {
+      await apiCall(`/doctor-reviews/${reviewId}`, { method: 'DELETE' });
+      await reloadDoctorsAndReviews();
+    } catch (deleteError) {
+      setError(deleteError.message || 'Could not delete comment.');
+    } finally {
+      setDeletingReviewId(null);
+    }
+  };
+
   return (
         <div className="patient-overview">
       <div className="patient-overview-hero">
@@ -253,8 +319,51 @@ const PatientOverview = () => {
                       <div className="patient-review-item" key={review.id}>
                         <div className="patient-review-head">
                           <strong>{review.patientName}</strong>
+                          {String(review.patientId) === String(user?.userId) && (
+                            <div className="patient-comment-actions">
+                              <button
+                                type="button"
+                                className="patient-comment-edit"
+                                disabled={editingReviewId === review.id}
+                                onClick={() => handleStartEditComment(review)}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="patient-comment-delete"
+                                disabled={deletingReviewId === review.id}
+                                onClick={() => handleDeleteComment(review.id)}
+                              >
+                                {deletingReviewId === review.id ? 'Deleting...' : 'Delete'}
+                              </button>
+                            </div>
+                          )}
                         </div>
-                        <p>{review.comment}</p>
+                        {editingReviewId === review.id ? (
+                          <div className="patient-comment-edit-form">
+                            <textarea
+                              rows="3"
+                              value={editCommentText}
+                              onChange={(event) => setEditCommentText(event.target.value)}
+                            />
+                            <div className="patient-comment-edit-actions">
+                              <button
+                                type="button"
+                                className="btn-primary"
+                                disabled={savingReviewId === review.id}
+                                onClick={() => handleSaveEditedComment(review.id)}
+                              >
+                                {savingReviewId === review.id ? 'Saving...' : 'Save'}
+                              </button>
+                              <button type="button" className="btn-secondary" onClick={handleCancelEditComment}>
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p>{review.comment}</p>
+                        )}
                       </div>
                     ))
                   ) : (
@@ -332,6 +441,9 @@ const PatientDashboard = () => {
           <NavLink to="/patient/profile" className={({ isActive }) => `patient-side-link ${isActive ? 'active' : ''}`}>
             Profile
           </NavLink>
+          <NavLink to="/patient/contact" className={({ isActive }) => `patient-side-link ${isActive ? 'active' : ''}`}>
+            Contact Us
+          </NavLink>
         </nav>
       </aside>
 
@@ -343,6 +455,7 @@ const PatientDashboard = () => {
             <Route path="appointments" element={<MyAppointments />} />
             <Route path="records" element={<MyRecords />} />
             <Route path="profile" element={<MyProfile title="Patient Profile" />} />
+            <Route path="contact" element={<ContactUs />} />
             <Route path="*" element={<Navigate to="/patient" replace />} />
           </Routes>
         </div>

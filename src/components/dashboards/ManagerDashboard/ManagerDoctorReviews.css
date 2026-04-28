@@ -135,6 +135,11 @@
   gap: 0.6rem;
 }
 
+.manager-review-comment-head strong {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .manager-review-comment-photo,
 .manager-review-comment-photo-fallback {
   width: 34px;
@@ -161,6 +166,30 @@
 
 .manager-review-comment strong {
   color: #1e293b;
+}
+
+.manager-review-comment-delete {
+  flex: 0 0 auto;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fff1f2;
+  color: #b91c1c;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 0.35rem 0.55rem;
+  white-space: nowrap;
+}
+
+.manager-review-comment-delete:hover,
+.manager-review-comment-delete:focus {
+  background: #fee2e2;
+}
+
+.manager-review-comment-delete:disabled {
+  cursor: default;
+  opacity: 0.65;
 }
 
 .manager-review-comment p {

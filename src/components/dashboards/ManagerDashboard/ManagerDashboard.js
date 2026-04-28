@@ -9,6 +9,7 @@ import ManagerDoctorReviews from './ManagerDoctorReviews';
 import DoctorsManagement from './DoctorsManagement';
 import PatientsList from './PatientsList';
 import AppointmentsOverview from './AppointmentsOverview';
+import PatientComplaints from './PatientComplaints';
 import './ManagerDashboard.css';
 
 const ManagerDashboard = () => {
@@ -178,6 +179,7 @@ const ManagerDashboard = () => {
           {currentSection === 'doctors' && <DoctorsManagement />}
           {currentSection === 'patients' && <PatientsList />}
           {currentSection === 'appointments' && <AppointmentsOverview />}
+          {currentSection === 'complaints' && <PatientComplaints />}
           {currentSection === 'profile' && <MyProfile title="Manager Profile" />}
         </div>
       </div>

@@ -10,6 +10,7 @@ const Sidebar = ({ role }) => {
     { path: '/manager/doctors', icon: 'DR', label: 'Doctors' },
     { path: '/manager/patients', icon: 'PT', label: 'Patients' },
     { path: '/manager/appointments', icon: 'AP', label: 'Appointments' },
+    { path: '/manager/complaints', icon: 'MS', label: 'Complaints' },
     { path: '/manager/profile', icon: 'ME', label: 'Profile' },
   ];
 

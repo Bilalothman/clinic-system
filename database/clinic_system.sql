@@ -14,6 +14,7 @@ USE clinic_system_db;
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS bills;
+DROP TABLE IF EXISTS patient_complaint;
 DROP TABLE IF EXISTS doctor_review;
 DROP TABLE IF EXISTS prescription;
 DROP TABLE IF EXISTS lab_result;
@@ -218,6 +219,22 @@ CREATE TABLE doctor_review (
     FOREIGN KEY (doctor_id) REFERENCES doctor(doctor_id)
     ON DELETE CASCADE,
   CONSTRAINT fk_doctor_review_patient
+    FOREIGN KEY (patient_id) REFERENCES patient(patient_id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE patient_complaint (
+  patient_complaint_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  patient_id BIGINT UNSIGNED NOT NULL,
+  subject VARCHAR(180) NOT NULL,
+  message TEXT NOT NULL,
+  status ENUM('new', 'reviewed') NOT NULL DEFAULT 'new',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (patient_complaint_id),
+  KEY idx_patient_complaint_patient (patient_id),
+  KEY idx_patient_complaint_status (status),
+  CONSTRAINT fk_patient_complaint_patient
     FOREIGN KEY (patient_id) REFERENCES patient(patient_id)
     ON DELETE CASCADE
 ) ENGINE=InnoDB;

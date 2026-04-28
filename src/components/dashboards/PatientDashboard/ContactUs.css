@@ -1,0 +1,58 @@
+.contact-us-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1.25rem;
+}
+
+.contact-us-header h3 {
+  margin: 0 0 0.35rem;
+  color: #0f172a;
+}
+
+.contact-us-header p {
+  margin: 0;
+  color: #475569;
+}
+
+.contact-us-form {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1.1rem;
+}
+
+.contact-us-form label {
+  color: #334155;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.contact-us-form input,
+.contact-us-form textarea {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.7rem 0.8rem;
+  background: #ffffff;
+  color: #1e293b;
+  font: inherit;
+}
+
+.contact-us-form textarea {
+  resize: vertical;
+}
+
+.contact-us-submit {
+  justify-self: flex-start;
+  margin-top: 0.35rem;
+}
+
+.contact-us-feedback {
+  margin-top: 0.9rem;
+  border: 1px solid #bae6fd;
+  border-radius: 10px;
+  background: #f0f9ff;
+  color: #0369a1;
+  font-weight: 700;
+  padding: 0.75rem 0.85rem;
+}

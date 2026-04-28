@@ -180,6 +180,79 @@
   font-size: 0.9rem;
 }
 
+.patient-review-head strong {
+  min-width: 0;
+}
+
+.patient-comment-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.patient-comment-edit,
+.patient-comment-delete {
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 0.35rem 0.55rem;
+  white-space: nowrap;
+}
+
+.patient-comment-edit {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.patient-comment-edit:hover,
+.patient-comment-edit:focus {
+  background: #dbeafe;
+}
+
+.patient-comment-delete {
+  border: 1px solid #fecaca;
+  background: #fff1f2;
+  color: #b91c1c;
+}
+
+.patient-comment-delete:hover,
+.patient-comment-delete:focus {
+  background: #fee2e2;
+}
+
+.patient-comment-edit:disabled,
+.patient-comment-delete:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.patient-comment-edit-form {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.5rem;
+}
+
+.patient-comment-edit-form textarea {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+  font: inherit;
+  color: #1e293b;
+  background: #fff;
+  resize: vertical;
+}
+
+.patient-comment-edit-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.5rem;
+}
+
 .patient-review-item p {
   margin: 0.35rem 0 0;
   color: #334155;

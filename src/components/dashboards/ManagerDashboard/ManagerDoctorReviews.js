@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useApi } from '../../../hooks/useApi';
 import './ManagerDoctorReviews.css';
 
@@ -21,29 +21,30 @@ const ManagerDoctorReviews = () => {
   const [doctors, setDoctors] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [expandedCommentsByDoctor, setExpandedCommentsByDoctor] = useState({});
+  const [deletingReviewId, setDeletingReviewId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    const loadDoctorsAndReviews = async () => {
-      setLoading(true);
-      setError('');
-      try {
-        const [doctorRows, reviewRows] = await Promise.all([
-          apiCall('/doctors'),
-          apiCall('/doctor-reviews'),
-        ]);
-        setDoctors(Array.isArray(doctorRows) ? doctorRows : []);
-        setReviews(Array.isArray(reviewRows) ? reviewRows : []);
-      } catch (loadError) {
-        setError(loadError.message || 'Could not load doctor feedback.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadDoctorsAndReviews();
+  const loadDoctorsAndReviews = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [doctorRows, reviewRows] = await Promise.all([
+        apiCall('/doctors'),
+        apiCall('/doctor-reviews'),
+      ]);
+      setDoctors(Array.isArray(doctorRows) ? doctorRows : []);
+      setReviews(Array.isArray(reviewRows) ? reviewRows : []);
+    } catch (loadError) {
+      setError(loadError.message || 'Could not load doctor feedback.');
+    } finally {
+      setLoading(false);
+    }
   }, [apiCall]);
+
+  useEffect(() => {
+    loadDoctorsAndReviews();
+  }, [loadDoctorsAndReviews]);
 
   const reviewsByDoctor = useMemo(() => {
     const grouped = {};
@@ -62,6 +63,25 @@ const ManagerDoctorReviews = () => {
       ...current,
       [doctorId]: !current[doctorId],
     }));
+  };
+
+  const handleDeleteComment = async (reviewId) => {
+    const shouldDelete = window.confirm('Delete this comment?');
+    if (!shouldDelete) {
+      return;
+    }
+
+    setDeletingReviewId(reviewId);
+    setError('');
+
+    try {
+      await apiCall(`/doctor-reviews/${reviewId}`, { method: 'DELETE' });
+      await loadDoctorsAndReviews();
+    } catch (deleteError) {
+      setError(deleteError.message || 'Could not delete comment.');
+    } finally {
+      setDeletingReviewId(null);
+    }
   };
 
   return (
@@ -135,6 +155,14 @@ const ManagerDoctorReviews = () => {
                                 </div>
                               )}
                               <strong>{review.patientName}</strong>
+                              <button
+                                type="button"
+                                className="manager-review-comment-delete"
+                                disabled={deletingReviewId === review.id}
+                                onClick={() => handleDeleteComment(review.id)}
+                              >
+                                {deletingReviewId === review.id ? 'Deleting...' : 'Delete'}
+                              </button>
                             </div>
                             <p>{review.comment}</p>
                           </div>

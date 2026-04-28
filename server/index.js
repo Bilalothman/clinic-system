@@ -155,6 +155,18 @@ const formatDoctorReview = (row) => ({
   updatedAt: row.updated_at,
 });
 
+const formatPatientComplaint = (row) => ({
+  id: row.patient_complaint_id,
+  patientId: row.patient_id,
+  patientName: row.patient_name || 'Patient',
+  patientEmail: row.patient_email || '',
+  subject: row.subject || '',
+  message: row.message || '',
+  status: row.status || 'new',
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
+
 const formatPatient = (row) => ({
   id: row.patient_id,
   name: row.full_name,
@@ -997,6 +1009,147 @@ app.post('/api/doctors/:id/reviews', requireAuth, asyncHandler(async (req, res) 
   res.status(201).json(formatDoctorReview(rows[0]));
 }));
 
+app.patch('/api/doctor-reviews/:id', requireAuth, requireRoles('patient'), asyncHandler(async (req, res) => {
+  const reviewId = Number(req.params.id);
+  const comment = String(req.body?.comment || '').trim();
+
+  if (!Number.isFinite(reviewId) || reviewId <= 0) {
+    res.status(400).json({ message: 'Invalid comment.' });
+    return;
+  }
+
+  if (!comment) {
+    res.status(400).json({ message: 'Please write a comment before saving it.' });
+    return;
+  }
+
+  const existingRows = await query(
+    `SELECT doctor_review_id
+     FROM doctor_review
+     WHERE doctor_review_id = ?
+       AND patient_id = ?
+       AND comment IS NOT NULL
+     LIMIT 1`,
+    [reviewId, Number(req.user.userId)]
+  );
+
+  if (!existingRows[0]) {
+    res.status(404).json({ message: 'Comment not found.' });
+    return;
+  }
+
+  await query(
+    `UPDATE doctor_review
+     SET comment = ?, updated_at = CURRENT_TIMESTAMP
+     WHERE doctor_review_id = ?`,
+    [comment, reviewId]
+  );
+
+  const rows = await query(
+    `SELECT
+      dr.*,
+      p.full_name AS patient_name
+     FROM doctor_review dr
+     INNER JOIN patient p ON p.patient_id = dr.patient_id
+     WHERE dr.doctor_review_id = ?
+     LIMIT 1`,
+    [reviewId]
+  );
+
+  res.json(formatDoctorReview(rows[0]));
+}));
+
+app.delete('/api/doctor-reviews/:id', requireAuth, asyncHandler(async (req, res) => {
+  const reviewId = Number(req.params.id);
+
+  if (req.user.role !== 'patient' && req.user.role !== 'manager') {
+    res.status(403).json({ message: 'Not allowed.' });
+    return;
+  }
+
+  if (!Number.isFinite(reviewId) || reviewId <= 0) {
+    res.status(400).json({ message: 'Invalid comment.' });
+    return;
+  }
+
+  const ownershipSql = req.user.role === 'patient' ? 'AND patient_id = ?' : '';
+  const params = req.user.role === 'patient'
+    ? [reviewId, Number(req.user.userId)]
+    : [reviewId];
+  const existingRows = await query(
+    `SELECT doctor_review_id
+     FROM doctor_review
+     WHERE doctor_review_id = ?
+       ${ownershipSql}
+       AND comment IS NOT NULL
+     LIMIT 1`,
+    params
+  );
+
+  if (!existingRows[0]) {
+    res.status(404).json({ message: 'Comment not found.' });
+    return;
+  }
+
+  await query('DELETE FROM doctor_review WHERE doctor_review_id = ?', [reviewId]);
+  res.json({ success: true, id: reviewId });
+}));
+
+app.get('/api/patient-complaints', requireAuth, requireRoles('manager'), asyncHandler(async (_req, res) => {
+  const rows = await query(
+    `SELECT
+      pc.*,
+      p.full_name AS patient_name,
+      p.email AS patient_email
+     FROM patient_complaint pc
+     INNER JOIN patient p ON p.patient_id = pc.patient_id
+     ORDER BY pc.created_at DESC, pc.patient_complaint_id DESC`,
+    []
+  );
+
+  res.json(rows.map(formatPatientComplaint));
+}));
+
+app.post('/api/patient-complaints', requireAuth, requireRoles('patient'), asyncHandler(async (req, res) => {
+  const subject = String(req.body?.subject || '').trim();
+  const message = String(req.body?.message || '').trim();
+
+  if (!subject) {
+    res.status(400).json({ message: 'Please enter a subject.' });
+    return;
+  }
+
+  if (!message) {
+    res.status(400).json({ message: 'Please write your message.' });
+    return;
+  }
+
+  if (subject.length > 180) {
+    res.status(400).json({ message: 'Subject must be 180 characters or fewer.' });
+    return;
+  }
+
+  const insert = await query(
+    `INSERT INTO patient_complaint (patient_id, subject, message)
+     VALUES (?, ?, ?)`,
+    [Number(req.user.userId), subject, message]
+  );
+
+  const rows = await query(
+    `SELECT
+      pc.*,
+      p.full_name AS patient_name,
+      p.email AS patient_email
+     FROM patient_complaint pc
+     INNER JOIN patient p ON p.patient_id = pc.patient_id
+     WHERE pc.patient_complaint_id = ?
+     LIMIT 1`,
+    [insert.insertId]
+  );
+
+  res.status(201).json(formatPatientComplaint(rows[0]));
+}));
+
 app.post('/api/doctors', requireAuth, requireRoles('manager'), asyncHandler(async (req, res) => {
   const { name, specialty, phone, email, password, status = 'active', fee = 0 } = req.body || {};
 
@@ -1812,6 +1965,23 @@ const checkDatabaseOnStartup = async () => {
     if (Number(reviewUniqueKeyRows[0]?.count || 0) > 0) {
       await query('ALTER TABLE doctor_review DROP INDEX uq_doctor_review_doctor_patient');
     }
+    await query(
+      `CREATE TABLE IF NOT EXISTS patient_complaint (
+        patient_complaint_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        patient_id BIGINT UNSIGNED NOT NULL,
+        subject VARCHAR(180) NOT NULL,
+        message TEXT NOT NULL,
+        status ENUM('new', 'reviewed') NOT NULL DEFAULT 'new',
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (patient_complaint_id),
+        KEY idx_patient_complaint_patient (patient_id),
+        KEY idx_patient_complaint_status (status),
+        CONSTRAINT fk_patient_complaint_patient
+          FOREIGN KEY (patient_id) REFERENCES patient(patient_id)
+          ON DELETE CASCADE
+      ) ENGINE=InnoDB`
+    );
 
     startupDbStatus = {
       ok: true,
