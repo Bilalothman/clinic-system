@@ -89,21 +89,6 @@ const Appointments = ({ showPendingOnly = false }) => {
     );
   }, [filteredAppointments, selectedAppointment]);
 
-  const getAvailabilityState = (appointment) => {
-    const days = doctorProfile?.availableDays || [];
-    const times = doctorProfile?.availableTimes || [];
-    const weekday = getWeekdayFromDate(appointment?.date);
-    const inDay = days.includes(weekday);
-    const inTime = times.includes(appointment?.time);
-
-    return {
-      isAvailable: inDay && inTime,
-      text: inDay && inTime
-        ? `Available in clinic hours (${weekday}, ${appointment?.time}).`
-        : `Outside clinic availability (${weekday}, ${appointment?.time}).`,
-    };
-  };
-
   const handleFormChange = (field, value) => {
     setNewAppointmentForm((current) => ({
       ...current,
@@ -383,9 +368,6 @@ const Appointments = ({ showPendingOnly = false }) => {
             <span><strong>Status:</strong> {selectedAppointment.status}</span>
           </div>
           <p className="appointment-reason"><strong>Reason:</strong> {selectedAppointment.reason}</p>
-          <div className={`availability-status ${getAvailabilityState(selectedAppointment).isAvailable ? 'available' : 'unavailable'}`}>
-            {getAvailabilityState(selectedAppointment).text}
-          </div>
 
           <div className="action-feedback">
             {selectedAppointment.status === 'pending'

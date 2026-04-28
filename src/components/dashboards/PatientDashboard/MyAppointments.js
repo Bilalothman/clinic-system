@@ -13,6 +13,15 @@ const emptyForm = {
   preFeeImageName: '',
 };
 
+const getTodayIso = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+};
+
 const getWeekdayFromDate = (dateString) => {
   if (!dateString) {
     return '';
@@ -81,6 +90,7 @@ const MyAppointments = () => {
 
   const patientId = user?.userId || '';
   const patientName = user?.profile?.name || (patientId ? `Patient ${patientId}` : 'Patient');
+  const todayIso = getTodayIso();
 
   const loadDoctors = async () => {
     try {
@@ -241,6 +251,16 @@ const MyAppointments = () => {
   };
 
   const handleDateChange = (date) => {
+    if (date && date < todayIso) {
+      setBookingForm((current) => ({
+        ...current,
+        date: '',
+        time: '',
+      }));
+      setFeedback('Please choose today or a future date. Old dates are not allowed.');
+      return;
+    }
+
     const weekday = getWeekdayFromDate(date);
     const doctorSchedule = doctorAvailability[bookingForm.doctor] || { days: [], times: [] };
     const dateIsAvailable = doctorSchedule.days.includes(weekday);
@@ -286,6 +306,11 @@ const MyAppointments = () => {
 
   const handleBookAppointment = async (e) => {
     e.preventDefault();
+
+    if (bookingForm.date && bookingForm.date < todayIso) {
+      setFeedback('Please choose today or a future date. Old dates are not allowed.');
+      return;
+    }
 
     if (!isSelectedDateAvailable) {
       setFeedback('Selected day is not available for this doctor.');
@@ -367,6 +392,7 @@ const MyAppointments = () => {
             <input
               id="appointment-date"
               type="date"
+              min={todayIso}
               value={bookingForm.date}
               onChange={(e) => handleDateChange(e.target.value)}
               required

@@ -99,6 +99,17 @@ const toDateOnlyString = (value) => {
   return String(value).slice(0, 10);
 };
 
+const isBeforeToday = (value) => {
+  const dateValue = toDateValue(value);
+  const today = toDateValue(new Date());
+
+  if (!dateValue || !today) {
+    return false;
+  }
+
+  return dateValue < today;
+};
+
 // Used before creating or updating appointments to avoid double-booking the same slot.
 const hasBookedAppointment = async ({ doctorId, date, time, excludeAppointmentId = null }) => {
   const params = [Number(doctorId), date, time];
@@ -160,6 +171,8 @@ const formatPatientComplaint = (row) => ({
   patientId: row.patient_id,
   patientName: row.patient_name || 'Patient',
   patientEmail: row.patient_email || '',
+  patientProfileImage: row.patient_profile_image || '',
+  patientProfileImageName: row.patient_profile_image_name || '',
   subject: row.subject || '',
   message: row.message || '',
   status: row.status || 'new',
@@ -1100,7 +1113,9 @@ app.get('/api/patient-complaints', requireAuth, requireRoles('manager'), asyncHa
     `SELECT
       pc.*,
       p.full_name AS patient_name,
-      p.email AS patient_email
+      p.email AS patient_email,
+      p.profile_image AS patient_profile_image,
+      p.profile_image_name AS patient_profile_image_name
      FROM patient_complaint pc
      INNER JOIN patient p ON p.patient_id = pc.patient_id
      ORDER BY pc.created_at DESC, pc.patient_complaint_id DESC`,
@@ -1139,7 +1154,9 @@ app.post('/api/patient-complaints', requireAuth, requireRoles('patient'), asyncH
     `SELECT
       pc.*,
       p.full_name AS patient_name,
-      p.email AS patient_email
+      p.email AS patient_email,
+      p.profile_image AS patient_profile_image,
+      p.profile_image_name AS patient_profile_image_name
      FROM patient_complaint pc
      INNER JOIN patient p ON p.patient_id = pc.patient_id
      WHERE pc.patient_complaint_id = ?
@@ -1481,6 +1498,11 @@ app.post('/api/appointments', requireAuth, asyncHandler(async (req, res) => {
     return;
   }
 
+  if (isBeforeToday(date)) {
+    res.status(400).json({ message: 'Appointment date must be today or a future date.' });
+    return;
+  }
+
   let resolvedDoctorId = doctorId ? Number(doctorId) : null;
 
   if (!resolvedDoctorId && doctor) {
@@ -1581,6 +1603,11 @@ app.patch('/api/appointments/:id', requireAuth, asyncHandler(async (req, res) =>
   const nextDate = updates.date ?? existing.appointment_date;
   const nextTime = updates.time ?? existing.appointment_time;
   const nextStatus = updates.status ?? existing.status;
+
+  if (updates.date && isBeforeToday(updates.date)) {
+    res.status(400).json({ message: 'Appointment date must be today or a future date.' });
+    return;
+  }
 
   if (
     updates.status &&

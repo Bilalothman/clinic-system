@@ -84,6 +84,35 @@
   grid-column: 1 / -1;
 }
 
+.manager-complaint-patient {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.manager-complaint-photo,
+.manager-complaint-photo-fallback {
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  flex: 0 0 48px;
+}
+
+.manager-complaint-photo {
+  object-fit: cover;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+}
+
+.manager-complaint-photo-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-weight: 800;
+  background: linear-gradient(135deg, #0ea5e9, #2563eb);
+}
+
 .manager-complaint-field span {
   margin: 0;
   color: #64748b;

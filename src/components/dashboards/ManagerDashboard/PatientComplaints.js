@@ -10,6 +10,13 @@ const getDateOnly = (value) => {
   return String(value).slice(0, 10);
 };
 
+const getPatientInitials = (name) => String(name || 'P')
+  .trim()
+  .split(/\s+/)
+  .slice(0, 2)
+  .map((part) => part[0]?.toUpperCase() || '')
+  .join('') || 'P';
+
 const PatientComplaints = () => {
   const { apiCall } = useApi();
   const [complaints, setComplaints] = useState([]);
@@ -80,9 +87,22 @@ const PatientComplaints = () => {
         <div className="manager-complaints-list">
           {filteredComplaints.map((complaint) => (
             <article className="manager-complaint-card" key={complaint.id}>
-              <div className="manager-complaint-field">
-                <span>Name</span>
-                <strong>{complaint.patientName}</strong>
+              <div className="manager-complaint-patient manager-complaint-field-wide">
+                {complaint.patientProfileImage ? (
+                  <img
+                    src={complaint.patientProfileImage}
+                    alt={`${complaint.patientName} profile`}
+                    className="manager-complaint-photo"
+                  />
+                ) : (
+                  <div className="manager-complaint-photo-fallback">
+                    {getPatientInitials(complaint.patientName)}
+                  </div>
+                )}
+                <div className="manager-complaint-field">
+                  <span>Name</span>
+                  <strong>{complaint.patientName}</strong>
+                </div>
               </div>
               <div className="manager-complaint-field">
                 <span>Subject</span>
