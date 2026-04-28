@@ -116,6 +116,10 @@
   background: linear-gradient(180deg, #10b981, #047857);
 }
 
+.doctor-metric-teal .doctor-metric-bar-fill {
+  background: linear-gradient(180deg, #14b8a6, #0f766e);
+}
+
 .doctor-metric-amber .doctor-metric-bar-fill {
   background: linear-gradient(180deg, #f59e0b, #d97706);
 }

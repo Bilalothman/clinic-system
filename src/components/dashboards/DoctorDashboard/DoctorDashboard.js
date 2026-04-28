@@ -22,13 +22,13 @@ const DoctorDashboard = () => {
     days: [],
     metrics: {
       appointments: [],
-      patients: [],
+      revenue: [],
       records: [],
       labResults: [],
     },
     totals: {
       appointments: 0,
-      patients: 0,
+      revenue: 0,
       records: 0,
       labResults: 0,
     },
@@ -49,13 +49,13 @@ const DoctorDashboard = () => {
           days: Array.isArray(response?.days) ? response.days : [],
           metrics: {
             appointments: response?.metrics?.appointments || [],
-            patients: response?.metrics?.patients || [],
+            revenue: response?.metrics?.revenue || [],
             records: response?.metrics?.records || [],
             labResults: response?.metrics?.labResults || [],
           },
           totals: {
             appointments: Number(response?.totals?.appointments || 0),
-            patients: Number(response?.totals?.patients || 0),
+            revenue: Number(response?.totals?.revenue || 0),
             records: Number(response?.totals?.records || 0),
             labResults: Number(response?.totals?.labResults || 0),
           },
@@ -79,6 +79,14 @@ const DoctorDashboard = () => {
     return date.toLocaleDateString('en-US', { weekday: 'short', day: '2-digit' });
   };
 
+  const formatMetricValue = (metric, value) => {
+    if (metric.isCurrency) {
+      return `$${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+    }
+
+    return Number(value || 0);
+  };
+
   const chartMetrics = useMemo(() => {
     const labels = dailyStats.days || [];
     const buildSeries = (values = []) => labels.map((day, index) => ({
@@ -94,10 +102,11 @@ const DoctorDashboard = () => {
         total: Number(dailyStats.totals.appointments || 0),
       },
       {
-        label: 'Patients',
-        colorClass: 'doctor-metric-green',
-        values: buildSeries(dailyStats.metrics.patients),
-        total: Number(dailyStats.totals.patients || 0),
+        label: 'Revenue',
+        colorClass: 'doctor-metric-teal',
+        isCurrency: true,
+        values: buildSeries(dailyStats.metrics.revenue),
+        total: Number(dailyStats.totals.revenue || 0),
       },
       {
         label: 'Records',
@@ -116,11 +125,11 @@ const DoctorDashboard = () => {
     dailyStats.days,
     dailyStats.metrics.appointments,
     dailyStats.metrics.labResults,
-    dailyStats.metrics.patients,
+    dailyStats.metrics.revenue,
     dailyStats.metrics.records,
     dailyStats.totals.appointments,
     dailyStats.totals.labResults,
-    dailyStats.totals.patients,
+    dailyStats.totals.revenue,
     dailyStats.totals.records,
   ]);
 
@@ -152,7 +161,7 @@ const DoctorDashboard = () => {
                         <div className={`doctor-metric-bars ${metric.colorClass}`}>
                           {metric.values.map((item, index) => (
                             <div className="doctor-metric-bar-column" key={`${metric.label}-${index}-${item.day}`}>
-                              <span className="doctor-metric-bar-value">{item.value}</span>
+                              <span className="doctor-metric-bar-value">{formatMetricValue(metric, item.value)}</span>
                               <div
                                 className="doctor-metric-bar-fill"
                                 style={{ height: `${Math.max((item.value / maxMetricValue) * 100, 10)}%` }}

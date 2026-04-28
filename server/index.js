@@ -611,14 +611,17 @@ app.get('/api/doctor-dashboard/stats', requireAuth, asyncHandler(async (req, res
   const [appointmentAggRows, recordsAggRows, labAggRows] = await Promise.all([
     query(
       `SELECT
-        DATE_FORMAT(appointment_date, '%Y-%m-%d') AS day,
-        SUM(CASE WHEN status = 'confirmed' THEN 1 ELSE 0 END) AS appointments_count,
-        COUNT(DISTINCT patient_id) AS patients_count
-       FROM appointment
-       WHERE doctor_id = ?
-         AND appointment_date BETWEEN ? AND ?
-         AND status IN ('pending', 'confirmed')
-       GROUP BY appointment_date`,
+        DATE_FORMAT(a.appointment_date, '%Y-%m-%d') AS day,
+        SUM(CASE WHEN a.status = 'confirmed' THEN 1 ELSE 0 END) AS appointments_count,
+        SUM(CASE WHEN a.status = 'confirmed' THEN COALESCE(b.amount, a.doctor_fee, d.consultation_fee, 0) * 0.80 ELSE 0 END) AS revenue_total,
+        COUNT(DISTINCT a.patient_id) AS patients_count
+       FROM appointment a
+       LEFT JOIN bills b ON b.appointment_id = a.appointment_id
+       LEFT JOIN doctor d ON d.doctor_id = a.doctor_id
+       WHERE a.doctor_id = ?
+         AND a.appointment_date BETWEEN ? AND ?
+         AND a.status IN ('pending', 'confirmed')
+       GROUP BY a.appointment_date`,
       [doctorId, startIso, endIso]
     ),
     query(
@@ -643,7 +646,7 @@ app.get('/api/doctor-dashboard/stats', requireAuth, asyncHandler(async (req, res
     ),
   ]);
 
-  const [appointmentsTotalRows, patientsTotalRows, recordsTotalRows, labResultsTotalRows] = await Promise.all([
+  const [appointmentsTotalRows, patientsTotalRows, revenueTotalRows, recordsTotalRows, labResultsTotalRows] = await Promise.all([
     query(
       `SELECT COUNT(*) AS total
        FROM appointment
@@ -655,6 +658,15 @@ app.get('/api/doctor-dashboard/stats', requireAuth, asyncHandler(async (req, res
       `SELECT COUNT(DISTINCT patient_id) AS total
        FROM appointment
        WHERE doctor_id = ?`,
+      [doctorId]
+    ),
+    query(
+      `SELECT COALESCE(SUM(COALESCE(b.amount, a.doctor_fee, d.consultation_fee, 0) * 0.80), 0) AS total
+       FROM appointment a
+       LEFT JOIN bills b ON b.appointment_id = a.appointment_id
+       LEFT JOIN doctor d ON d.doctor_id = a.doctor_id
+       WHERE a.doctor_id = ?
+         AND a.status = 'confirmed'`,
       [doctorId]
     ),
     query(
@@ -676,6 +688,7 @@ app.get('/api/doctor-dashboard/stats', requireAuth, asyncHandler(async (req, res
     appointmentByDay[row.day] = {
       appointments: Number(row.appointments_count || 0),
       patients: Number(row.patients_count || 0),
+      revenue: Number(row.revenue_total || 0),
     };
   });
 
@@ -691,6 +704,7 @@ app.get('/api/doctor-dashboard/stats', requireAuth, asyncHandler(async (req, res
   const timeline = [];
   const metricAppointments = [];
   const metricPatients = [];
+  const metricRevenue = [];
   const metricRecords = [];
   const metricLabResults = [];
 
@@ -701,6 +715,7 @@ app.get('/api/doctor-dashboard/stats', requireAuth, asyncHandler(async (req, res
     timeline.push(dayIso);
     metricAppointments.push(appointmentByDay[dayIso]?.appointments || 0);
     metricPatients.push(appointmentByDay[dayIso]?.patients || 0);
+    metricRevenue.push(appointmentByDay[dayIso]?.revenue || 0);
     metricRecords.push(recordsByDay[dayIso] || 0);
     metricLabResults.push(labResultsByDay[dayIso] || 0);
   }
@@ -713,12 +728,14 @@ app.get('/api/doctor-dashboard/stats', requireAuth, asyncHandler(async (req, res
     metrics: {
       appointments: metricAppointments,
       patients: metricPatients,
+      revenue: metricRevenue,
       records: metricRecords,
       labResults: metricLabResults,
     },
     totals: {
       appointments: Number(appointmentsTotalRows[0]?.total || 0),
       patients: Number(patientsTotalRows[0]?.total || 0),
+      revenue: Number(revenueTotalRows[0]?.total || 0),
       records: Number(recordsTotalRows[0]?.total || 0),
       labResults: Number(labResultsTotalRows[0]?.total || 0),
     },
