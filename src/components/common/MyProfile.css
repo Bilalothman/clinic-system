@@ -92,6 +92,10 @@
   margin-bottom: 0.9rem;
 }
 
+.doctor-profile-actions-bottom {
+  margin: 1rem 0 0;
+}
+
 .doctor-profile-form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

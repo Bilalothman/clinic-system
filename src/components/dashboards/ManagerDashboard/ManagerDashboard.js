@@ -101,7 +101,7 @@ const ManagerDashboard = () => {
         total: Number(dailyStats.totals.patients || 0),
       },
       {
-        label: 'Appointments',
+        label: 'Appointments Accepted',
         colorClass: 'manager-metric-amber',
         values: buildSeries(dailyStats.metrics.appointments),
         total: Number(dailyStats.totals.appointments || 0),

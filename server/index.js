@@ -775,7 +775,7 @@ app.get('/api/manager-dashboard/stats', requireAuth, requireRoles('manager'), as
     query(
       `SELECT
         DATE_FORMAT(COALESCE(paid_date, issued_date), '%Y-%m-%d') AS day,
-        SUM(amount) AS revenue_total
+        SUM(amount * 0.20) AS revenue_total
        FROM bills
        WHERE bill_status = 'paid'
          AND COALESCE(paid_date, issued_date) BETWEEN ? AND ?
@@ -804,7 +804,7 @@ app.get('/api/manager-dashboard/stats', requireAuth, requireRoles('manager'), as
       []
     ),
     query(
-      `SELECT COALESCE(SUM(amount), 0) AS total
+      `SELECT COALESCE(SUM(amount * 0.20), 0) AS total
        FROM bills
        WHERE bill_status = 'paid'`,
       []

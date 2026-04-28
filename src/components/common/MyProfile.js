@@ -316,8 +316,98 @@ const MyProfile = ({ title = 'My Profile' }) => {
                 <button type="button" className="btn-primary" onClick={() => setIsEditingProfile(true)}>
                   Edit Profile
                 </button>
-              ) : (
-                <>
+              ) : null}
+            </div>
+
+            {isEditingProfile && (
+              <>
+                <div className="doctor-profile-form-grid">
+                  <div className="doctor-profile-field">
+                    <label htmlFor="doctor-profile-name">Full Name</label>
+                    <input
+                      id="doctor-profile-name"
+                      value={profileForm.name}
+                      onChange={(e) => handleProfileFieldChange('name', e.target.value)}
+                      placeholder="Doctor full name"
+                    />
+                  </div>
+
+                  <div className="doctor-profile-field">
+                    <label htmlFor="doctor-profile-email">Email</label>
+                    <input
+                      id="doctor-profile-email"
+                      type="email"
+                      value={profileForm.email}
+                      onChange={(e) => handleProfileFieldChange('email', e.target.value)}
+                      placeholder="doctor@email.com"
+                    />
+                  </div>
+
+                  <div className="doctor-profile-field">
+                    <label htmlFor="doctor-profile-phone">Phone</label>
+                    <input
+                      id="doctor-profile-phone"
+                      value={profileForm.phone}
+                      onChange={(e) => handleProfileFieldChange('phone', e.target.value)}
+                      placeholder="+1 555 000 0000"
+                    />
+                  </div>
+
+                  <div className="doctor-profile-field">
+                    <label htmlFor="doctor-profile-gender">Gender</label>
+                    <input
+                      id="doctor-profile-gender"
+                      value={profileForm.gender}
+                      onChange={(e) => handleProfileFieldChange('gender', e.target.value)}
+                      placeholder="Male/Female"
+                    />
+                  </div>
+
+                  <div className="doctor-profile-field">
+                    <label htmlFor="doctor-profile-dob">Date Of Birth</label>
+                    <input
+                      id="doctor-profile-dob"
+                      type="date"
+                      value={profileForm.dob || ''}
+                      onChange={(e) => handleProfileFieldChange('dob', e.target.value)}
+                    />
+                  </div>
+
+                  <div className="doctor-profile-field doctor-profile-field-wide">
+                    <label htmlFor="doctor-profile-address">Address</label>
+                    <input
+                      id="doctor-profile-address"
+                      value={profileForm.address}
+                      onChange={(e) => handleProfileFieldChange('address', e.target.value)}
+                      placeholder="Clinic or home address"
+                    />
+                  </div>
+
+                  <div className="doctor-profile-field doctor-profile-field-wide">
+                    <label htmlFor="doctor-profile-photo">Profile Photo</label>
+                    <input
+                      id="doctor-profile-photo"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleProfileImageChange}
+                    />
+                    <div className="profile-photo-row">
+                      {profileForm.avatar ? (
+                        <img src={profileForm.avatar} alt="Selected profile" className="profile-photo-preview" />
+                      ) : (
+                        <div className="profile-photo-fallback">No photo</div>
+                      )}
+                      <span className="profile-value">{formatValue(profileForm.avatarName || 'No photo selected')}</span>
+                    </div>
+                    {profileForm.avatar && (
+                      <button type="button" className="btn-secondary" onClick={handleRemoveProfileImage}>
+                        Remove Photo
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="doctor-profile-actions doctor-profile-actions-bottom">
                   <button type="button" className="btn-primary" onClick={handleSaveProfile}>
                     Save Profile
                   </button>
@@ -340,96 +430,8 @@ const MyProfile = ({ title = 'My Profile' }) => {
                   >
                     Cancel
                   </button>
-                </>
-              )}
-            </div>
-
-            {isEditingProfile && (
-              <div className="doctor-profile-form-grid">
-                <div className="doctor-profile-field">
-                  <label htmlFor="doctor-profile-name">Full Name</label>
-                  <input
-                    id="doctor-profile-name"
-                    value={profileForm.name}
-                    onChange={(e) => handleProfileFieldChange('name', e.target.value)}
-                    placeholder="Doctor full name"
-                  />
                 </div>
-
-                <div className="doctor-profile-field">
-                  <label htmlFor="doctor-profile-email">Email</label>
-                  <input
-                    id="doctor-profile-email"
-                    type="email"
-                    value={profileForm.email}
-                    onChange={(e) => handleProfileFieldChange('email', e.target.value)}
-                    placeholder="doctor@email.com"
-                  />
-                </div>
-
-                <div className="doctor-profile-field">
-                  <label htmlFor="doctor-profile-phone">Phone</label>
-                  <input
-                    id="doctor-profile-phone"
-                    value={profileForm.phone}
-                    onChange={(e) => handleProfileFieldChange('phone', e.target.value)}
-                    placeholder="+1 555 000 0000"
-                  />
-                </div>
-
-                <div className="doctor-profile-field">
-                  <label htmlFor="doctor-profile-gender">Gender</label>
-                  <input
-                    id="doctor-profile-gender"
-                    value={profileForm.gender}
-                    onChange={(e) => handleProfileFieldChange('gender', e.target.value)}
-                    placeholder="Male/Female"
-                  />
-                </div>
-
-                <div className="doctor-profile-field">
-                  <label htmlFor="doctor-profile-dob">Date Of Birth</label>
-                  <input
-                    id="doctor-profile-dob"
-                    type="date"
-                    value={profileForm.dob || ''}
-                    onChange={(e) => handleProfileFieldChange('dob', e.target.value)}
-                  />
-                </div>
-
-                <div className="doctor-profile-field doctor-profile-field-wide">
-                  <label htmlFor="doctor-profile-address">Address</label>
-                  <input
-                    id="doctor-profile-address"
-                    value={profileForm.address}
-                    onChange={(e) => handleProfileFieldChange('address', e.target.value)}
-                    placeholder="Clinic or home address"
-                  />
-                </div>
-
-                <div className="doctor-profile-field doctor-profile-field-wide">
-                  <label htmlFor="doctor-profile-photo">Profile Photo</label>
-                  <input
-                    id="doctor-profile-photo"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleProfileImageChange}
-                  />
-                  <div className="profile-photo-row">
-                    {profileForm.avatar ? (
-                      <img src={profileForm.avatar} alt="Selected profile" className="profile-photo-preview" />
-                    ) : (
-                      <div className="profile-photo-fallback">No photo</div>
-                    )}
-                    <span className="profile-value">{formatValue(profileForm.avatarName || 'No photo selected')}</span>
-                  </div>
-                  {profileForm.avatar && (
-                    <button type="button" className="btn-secondary" onClick={handleRemoveProfileImage}>
-                      Remove Photo
-                    </button>
-                  )}
-                </div>
-              </div>
+              </>
             )}
 
             {profileFeedback && <div className="doctor-fee-feedback">{profileFeedback}</div>}
