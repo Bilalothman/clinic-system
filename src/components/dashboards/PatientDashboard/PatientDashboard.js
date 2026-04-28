@@ -7,6 +7,7 @@ import MyProfile from '../../common/MyProfile';
 import MyAppointments from './MyAppointments';
 import MyRecords from './MyRecords';
 import ContactUs from './ContactUs';
+import ClinicLocation from './ClinicLocation';
 import './PatientDashboard.css';
 
 const StarRating = ({ value, onChange, disabled = false, labelId }) => (
@@ -438,11 +439,14 @@ const PatientDashboard = () => {
           <NavLink to="/patient/records" className={({ isActive }) => `patient-side-link ${isActive ? 'active' : ''}`}>
             Medical Records
           </NavLink>
-          <NavLink to="/patient/profile" className={({ isActive }) => `patient-side-link ${isActive ? 'active' : ''}`}>
-            Profile
+          <NavLink to="/patient/location" className={({ isActive }) => `patient-side-link ${isActive ? 'active' : ''}`}>
+            Clinic Location
           </NavLink>
           <NavLink to="/patient/contact" className={({ isActive }) => `patient-side-link ${isActive ? 'active' : ''}`}>
             Contact Us
+          </NavLink>
+          <NavLink to="/patient/profile" className={({ isActive }) => `patient-side-link ${isActive ? 'active' : ''}`}>
+            Profile
           </NavLink>
         </nav>
       </aside>
@@ -456,6 +460,7 @@ const PatientDashboard = () => {
             <Route path="records" element={<MyRecords />} />
             <Route path="profile" element={<MyProfile title="Patient Profile" />} />
             <Route path="contact" element={<ContactUs />} />
+            <Route path="location" element={<ClinicLocation />} />
             <Route path="*" element={<Navigate to="/patient" replace />} />
           </Routes>
         </div>
