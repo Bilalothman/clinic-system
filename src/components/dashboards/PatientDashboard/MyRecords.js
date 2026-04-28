@@ -3,6 +3,20 @@ import { useAuth } from '../../../hooks/useAuth';
 import { useApi } from '../../../hooks/useApi';
 import './MyRecords.css';
 
+const getReportFileName = (result) => {
+  if (result.resultImageName) {
+    return result.resultImageName;
+  }
+
+  const safeTestName = (result.testName || 'lab-result')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+  const safeDate = (result.date || new Date().toISOString().slice(0, 10)).replace(/[^0-9-]/g, '');
+
+  return `${safeTestName || 'lab-result'}-${safeDate || 'report'}.png`;
+};
+
 const MyRecords = () => {
   const { user } = useAuth();
   const { apiCall } = useApi();
@@ -78,8 +92,19 @@ const MyRecords = () => {
           {myLabResults.map((result) => (
             <div key={result.id} className="lab-result-card">
               <div className="lab-result-head">
-                <h5>{result.testName}</h5>
-                <span>{result.date}</span>
+                <div>
+                  <h5>{result.testName}</h5>
+                  <span>{result.date}</span>
+                </div>
+                {result.resultImage && (
+                  <a
+                    className="lab-result-export"
+                    href={result.resultImage}
+                    download={getReportFileName(result)}
+                  >
+                    Export
+                  </a>
+                )}
               </div>
               {result.resultImage && (
                 <img className="lab-result-image" src={result.resultImage} alt={`${result.testName} result`} />

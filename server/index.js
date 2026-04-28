@@ -45,8 +45,10 @@ const defaultDoctorTimeSlots = [
 app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:3000' }));
 app.use(express.json({ limit: '20mb' }));
 
+// Forward async route errors to Express instead of repeating try/catch in every handler.
 const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
+// Doctor availability is stored as JSON in MySQL, so normalize it into plain arrays.
 const parseJsonArray = (value) => {
   if (Array.isArray(value)) {
     return value;
@@ -68,6 +70,7 @@ const parseDuration = (value) => {
   return 15;
 };
 
+// Keep date formatting centralized because charts and forms depend on consistent YYYY-MM-DD values.
 const toIsoDate = (value) => {
   const year = value.getFullYear();
   const month = String(value.getMonth() + 1).padStart(2, '0');
@@ -96,6 +99,7 @@ const toDateOnlyString = (value) => {
   return String(value).slice(0, 10);
 };
 
+// Used before creating or updating appointments to avoid double-booking the same slot.
 const hasBookedAppointment = async ({ doctorId, date, time, excludeAppointmentId = null }) => {
   const params = [Number(doctorId), date, time];
   let sql = `
@@ -116,6 +120,7 @@ const hasBookedAppointment = async ({ doctorId, date, time, excludeAppointmentId
   return Boolean(rows[0]);
 };
 
+// These formatters convert database column names into the shape the frontend expects.
 const formatDoctor = (row) => ({
   id: row.doctor_id,
   name: row.full_name,
@@ -187,6 +192,7 @@ const formatAppointment = (row) => ({
   preFeeImageName: row.pre_fee_image_name || '',
 });
 
+// Support both hashed passwords and older plain-text seed data during login.
 const passwordMatches = async (plain, stored) => {
   if (!stored) {
     return false;
@@ -224,6 +230,7 @@ const patientById = async (patientId) => {
   return rows[0] || null;
 };
 
+// Reviews are only allowed when the patient has an appointment with that doctor.
 const patientHasDoctorAppointment = async (patientId, doctorId) => {
   const rows = await query(
     `SELECT appointment_id
@@ -237,6 +244,7 @@ const patientHasDoctorAppointment = async (patientId, doctorId) => {
   return Boolean(rows[0]);
 };
 
+// Some flows create appointments before a patient record exists, so this helper guarantees one.
 const ensurePatient = async ({ patientId, patientName }) => {
   if (patientId) {
     const existing = await patientById(patientId);

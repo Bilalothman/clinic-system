@@ -118,8 +118,32 @@
 }
 
 .lab-result-head span {
+  display: block;
+  margin-top: 0.2rem;
   color: #64748b;
   font-size: 0.9rem;
+}
+
+.lab-result-export {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.65rem 0.9rem;
+  text-decoration: none;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.lab-result-export:hover,
+.lab-result-export:focus {
+  background: #1d4ed8;
+  color: #ffffff;
+  transform: translateY(-1px);
 }
 
 .lab-result-image {
@@ -140,4 +164,11 @@
   border: 1px dashed rgba(148, 163, 184, 0.5);
   color: #64748b;
   background: rgba(255, 255, 255, 0.65);
+}
+
+@media (max-width: 540px) {
+  .lab-result-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
