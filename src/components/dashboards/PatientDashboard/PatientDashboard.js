@@ -75,6 +75,10 @@ const PatientOverview = () => {
   const [savingReviewId, setSavingReviewId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [specialtyMessage, setSpecialtyMessage] = useState('');
+  const [specialtyAdvice, setSpecialtyAdvice] = useState(null);
+  const [specialtyLoading, setSpecialtyLoading] = useState(false);
+  const [specialtyError, setSpecialtyError] = useState('');
   const getInitials = (name) => String(name || 'D')
     .trim()
     .split(/\s+/)
@@ -263,12 +267,85 @@ const PatientOverview = () => {
     }
   };
 
+  const handleSpecialtyAdviceSubmit = async (event) => {
+    event.preventDefault();
+    const diagnosis = specialtyMessage.trim();
+
+    if (!diagnosis) {
+      setSpecialtyError('Please describe your symptoms or diagnosis first.');
+      return;
+    }
+
+    setSpecialtyLoading(true);
+    setSpecialtyError('');
+    setSpecialtyAdvice(null);
+    setSpecialtyMessage('');
+
+    try {
+      const advice = await apiCall('/patient-specialty-advice', {
+        method: 'POST',
+        body: JSON.stringify({ diagnosis }),
+      });
+      setSpecialtyAdvice(advice);
+    } catch (adviceError) {
+      setSpecialtyError(adviceError.message || 'Could not get a specialty recommendation.');
+    } finally {
+      setSpecialtyLoading(false);
+    }
+  };
+
   return (
         <div className="patient-overview">
       <div className="patient-overview-hero">
         <h2>All Doctors</h2>
         <p>Browse every available doctor in the clinic.</p>
       </div>
+
+      <section className="patient-specialty-chat" aria-labelledby="specialty-chat-title">
+        <div className="patient-specialty-chat-copy">
+          <h3 id="specialty-chat-title">Specialty Helper</h3>
+          <p>Describe your symptoms or diagnosis and get help choosing which specialty to book.</p>
+        </div>
+        <form className="patient-specialty-chat-form" onSubmit={handleSpecialtyAdviceSubmit}>
+          <label htmlFor="patient-specialty-message">Symptoms or diagnosis</label>
+          <textarea
+            id="patient-specialty-message"
+            rows="4"
+            maxLength="1200"
+            value={specialtyMessage}
+            onChange={(event) => setSpecialtyMessage(event.target.value)}
+            placeholder="Example: I have chest pain when walking and shortness of breath"
+          />
+          <div className="patient-specialty-chat-actions">
+            <span>{specialtyMessage.length}/1200</span>
+            <button type="submit" className="btn-primary" disabled={specialtyLoading}>
+              {specialtyLoading ? 'Checking...' : 'Ask ChatGPT'}
+            </button>
+          </div>
+        </form>
+
+        {specialtyError && <div className="patient-specialty-error">{specialtyError}</div>}
+        {specialtyAdvice && (
+          <div className="patient-specialty-result">
+            <div>
+              <span className="patient-specialty-label">Recommended specialty</span>
+              <strong>{specialtyAdvice.specialty}</strong>
+            </div>
+            <div>
+              <span className="patient-specialty-label">Urgency</span>
+              <strong>{specialtyAdvice.urgency}</strong>
+            </div>
+            <p>{specialtyAdvice.advice}</p>
+            {specialtyAdvice.appointmentReason && (
+              <p className="patient-specialty-reason">Appointment reason: {specialtyAdvice.appointmentReason}</p>
+            )}
+            <p className="patient-specialty-disclaimer">{specialtyAdvice.disclaimer}</p>
+            <NavLink to="/patient/appointments" className="patient-specialty-book-link">
+              Book Appointment
+            </NavLink>
+          </div>
+        )}
+      </section>
 
       {loading && <div className="patient-doctor-state">Loading doctors...</div>}
       {!loading && error && <div className="patient-doctor-state patient-doctor-error">{error}</div>}

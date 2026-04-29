@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const OpenAI = require('openai');
 const { query } = require('./db');
 const { requireAuth, requireRoles } = require('./middleware/auth');
 
@@ -267,6 +268,96 @@ const patientHasDoctorAppointment = async (patientId, doctorId) => {
   );
 
   return Boolean(rows[0]);
+};
+
+const extractJsonObject = (value) => {
+  const text = String(value || '').trim();
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(match[0]);
+    } catch (parseError) {
+      return null;
+    }
+  }
+};
+
+const buildSpecialtyAdvicePrompt = ({ diagnosis, specialties }) => [
+  {
+    role: 'system',
+    content: [
+      'You help patients choose which clinic specialty to book.',
+      'Do not diagnose, prescribe medicine, or replace medical care.',
+      'Choose one specialty from the provided clinic specialties whenever possible.',
+      'If the symptoms may be urgent or life-threatening, set urgency to emergency and recommend emergency care.',
+      'Return only JSON with: specialty, urgency, advice, appointmentReason.',
+    ].join(' '),
+  },
+  {
+    role: 'user',
+    content: [
+      `Clinic specialties: ${specialties.join(', ') || 'General Medicine'}.`,
+      `Patient message: ${diagnosis}`,
+    ].join('\n'),
+  },
+];
+
+const getChatSpecialtyAdvice = async ({ diagnosis, specialties }) => {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    const error = new Error('OpenAI API key is not configured.');
+    error.statusCode = 503;
+    throw error;
+  }
+
+  const openai = new OpenAI({ apiKey });
+  let data;
+
+  try {
+    data = await openai.chat.completions.create({
+      model: process.env.OPENAI_MODEL || 'gpt-3.5-turbo',
+      messages: buildSpecialtyAdvicePrompt({ diagnosis, specialties }),
+      temperature: 0.2,
+      max_tokens: 220,
+    });
+  } catch (error) {
+    if (error?.status === 429 || error?.code === 'insufficient_quota') {
+      const quotaError = new Error('ChatGPT is unavailable because the OpenAI account has no remaining quota. Please check billing or try again later.');
+      quotaError.statusCode = 503;
+      throw quotaError;
+    }
+
+    throw error;
+  }
+
+  const content = data?.choices?.[0]?.message?.content || '';
+  const parsed = extractJsonObject(content);
+
+  if (!parsed) {
+    return {
+      specialty: 'General Medicine',
+      urgency: 'routine',
+      advice: content.trim() || 'Please book an appointment so a clinician can review your symptoms.',
+      appointmentReason: diagnosis,
+    };
+  }
+
+  return {
+    specialty: String(parsed.specialty || 'General Medicine').trim(),
+    urgency: String(parsed.urgency || 'routine').trim(),
+    advice: String(parsed.advice || 'Please book an appointment so a clinician can review your symptoms.').trim(),
+    appointmentReason: String(parsed.appointmentReason || diagnosis).trim(),
+  };
 };
 
 // Some flows create appointments before a patient record exists, so this helper guarantees one.
@@ -553,6 +644,38 @@ app.get('/api/doctors', requireAuth, asyncHandler(async (req, res) => {
     ['doctor']
   );
   res.json(rows.map(formatDoctor));
+}));
+
+app.post('/api/patient-specialty-advice', requireAuth, requireRoles('patient'), asyncHandler(async (req, res) => {
+  const diagnosis = String(req.body?.diagnosis || '').trim();
+
+  if (!diagnosis) {
+    res.status(400).json({ message: 'Please describe your symptoms or diagnosis first.' });
+    return;
+  }
+
+  if (diagnosis.length > 1200) {
+    res.status(400).json({ message: 'Please keep your message under 1200 characters.' });
+    return;
+  }
+
+  const specialtyRows = await query(
+    `SELECT DISTINCT specialty
+     FROM doctor
+     WHERE role = 'doctor'
+       AND status = 'active'
+       AND specialty IS NOT NULL
+       AND specialty <> ''
+     ORDER BY specialty ASC`
+  );
+  const specialties = specialtyRows.map((row) => row.specialty).filter(Boolean);
+  const advice = await getChatSpecialtyAdvice({ diagnosis, specialties });
+
+  res.json({
+    ...advice,
+    specialties,
+    disclaimer: 'This is not a medical diagnosis. For severe or worsening symptoms, seek urgent medical care.',
+  });
 }));
 
 app.get('/api/doctor-dashboard/stats', requireAuth, asyncHandler(async (req, res) => {
@@ -1950,7 +2073,7 @@ app.post('/api/lab-results', requireAuth, asyncHandler(async (req, res) => {
 app.use((error, _req, res, _next) => {
   // eslint-disable-next-line no-console
   console.error(error);
-  res.status(500).json({ message: 'Server error', detail: error.message });
+  res.status(error.statusCode || error.status || 500).json({ message: error.message || 'Server error' });
 });
 
 const checkDatabaseOnStartup = async () => {

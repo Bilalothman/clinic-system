@@ -63,6 +63,129 @@
   color: #475569;
 }
 
+.patient-specialty-chat {
+  display: grid;
+  gap: 0.85rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1.25rem;
+}
+
+.patient-specialty-chat-copy h3 {
+  margin: 0 0 0.35rem;
+  color: #0f172a;
+}
+
+.patient-specialty-chat-copy p {
+  margin: 0;
+  color: #475569;
+}
+
+.patient-specialty-chat-form {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.patient-specialty-chat-form label {
+  color: #334155;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.patient-specialty-chat-form textarea {
+  width: 100%;
+  min-height: 104px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.7rem 0.8rem;
+  font: inherit;
+  color: #1e293b;
+  background: #fff;
+  resize: vertical;
+}
+
+.patient-specialty-chat-form textarea:focus {
+  border-color: #2563eb;
+  outline: 3px solid #dbeafe;
+}
+
+.patient-specialty-chat-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.patient-specialty-chat-actions span {
+  color: #64748b;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.patient-specialty-error {
+  border: 1px solid #fecaca;
+  background: #fff1f2;
+  border-radius: 10px;
+  color: #b91c1c;
+  font-weight: 700;
+  padding: 0.75rem 0.85rem;
+}
+
+.patient-specialty-result {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  border-radius: 10px;
+  padding: 0.9rem;
+}
+
+.patient-specialty-label {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.patient-specialty-result strong {
+  color: #0f172a;
+  text-transform: capitalize;
+}
+
+.patient-specialty-result p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #1e293b;
+}
+
+.patient-specialty-reason {
+  font-weight: 700;
+}
+
+.patient-specialty-disclaimer {
+  color: #475569 !important;
+  font-size: 0.88rem;
+}
+
+.patient-specialty-book-link {
+  justify-self: start;
+  grid-column: 1 / -1;
+  text-decoration: none;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 800;
+  padding: 0.6rem 0.85rem;
+}
+
+.patient-specialty-book-link:hover {
+  background: #1d4ed8;
+}
+
 .patient-doctor-state {
   background: #ffffff;
   border: 1px solid #e2e8f0;
@@ -353,5 +476,14 @@
 
   .patient-doctor-grid {
     grid-template-columns: 1fr;
+  }
+
+  .patient-specialty-result {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-specialty-chat-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
