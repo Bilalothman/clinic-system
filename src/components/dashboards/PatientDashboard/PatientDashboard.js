@@ -327,22 +327,27 @@ const PatientOverview = () => {
         {specialtyError && <div className="patient-specialty-error">{specialtyError}</div>}
         {specialtyAdvice && (
           <div className="patient-specialty-result">
-            <div>
-              <span className="patient-specialty-label">Recommended specialty</span>
-              <strong>{specialtyAdvice.specialty}</strong>
-            </div>
-            <div>
-              <span className="patient-specialty-label">Urgency</span>
-              <strong>{specialtyAdvice.urgency}</strong>
-            </div>
-            <p>{specialtyAdvice.advice}</p>
-            {specialtyAdvice.appointmentReason && (
-              <p className="patient-specialty-reason">Appointment reason: {specialtyAdvice.appointmentReason}</p>
+            {specialtyAdvice.isMedical === false ? (
+              <p className="patient-specialty-disclaimer">{specialtyAdvice.disclaimer}</p>
+            ) : (
+              <>
+                <div>
+                  <span className="patient-specialty-label">Recommended specialty</span>
+                  <strong>{specialtyAdvice.specialty}</strong>
+                </div>
+                <div>
+                  <span className="patient-specialty-label">Urgency</span>
+                  <strong>{specialtyAdvice.urgency}</strong>
+                </div>
+                <p>{specialtyAdvice.advice}</p>
+                {specialtyAdvice.appointmentReason && (
+                  <p className="patient-specialty-reason">Appointment reason: {specialtyAdvice.appointmentReason}</p>
+                )}
+                <NavLink to="/patient/appointments" className="patient-specialty-book-link">
+                  Book Appointment
+                </NavLink>
+              </>
             )}
-            <p className="patient-specialty-disclaimer">{specialtyAdvice.disclaimer}</p>
-            <NavLink to="/patient/appointments" className="patient-specialty-book-link">
-              Book Appointment
-            </NavLink>
           </div>
         )}
       </section>

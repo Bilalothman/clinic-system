@@ -10,6 +10,7 @@ const { requireAuth, requireRoles } = require('./middleware/auth');
 const app = express();
 const PORT = Number(process.env.PORT || 3001);
 const startedAt = new Date().toISOString();
+const medicalDisclaimer = 'This is not a medical diagnosis. For severe or worsening symptoms, seek urgent medical care.';
 let startupDbStatus = { ok: false, checkedAt: null, error: null };
 const defaultDoctorTimeSlots = [
   '08:00 AM',
@@ -298,9 +299,10 @@ const buildSpecialtyAdvicePrompt = ({ diagnosis, specialties }) => [
     content: [
       'You help patients choose which clinic specialty to book.',
       'Do not diagnose, prescribe medicine, or replace medical care.',
+      'If the patient message is not medical, symptom-related, or diagnosis-related, set isMedical to false.',
       'Choose one specialty from the provided clinic specialties whenever possible.',
       'If the symptoms may be urgent or life-threatening, set urgency to emergency and recommend emergency care.',
-      'Return only JSON with: specialty, urgency, advice, appointmentReason.',
+      'Return only JSON with: isMedical, specialty, urgency, advice, appointmentReason.',
     ].join(' '),
   },
   {
@@ -345,6 +347,7 @@ const getChatSpecialtyAdvice = async ({ diagnosis, specialties }) => {
 
   if (!parsed) {
     return {
+      isMedical: true,
       specialty: 'General Medicine',
       urgency: 'routine',
       advice: content.trim() || 'Please book an appointment so a clinician can review your symptoms.',
@@ -352,7 +355,15 @@ const getChatSpecialtyAdvice = async ({ diagnosis, specialties }) => {
     };
   }
 
+  if (parsed.isMedical === false) {
+    return {
+      isMedical: false,
+      disclaimer: medicalDisclaimer,
+    };
+  }
+
   return {
+    isMedical: true,
     specialty: String(parsed.specialty || 'General Medicine').trim(),
     urgency: String(parsed.urgency || 'routine').trim(),
     advice: String(parsed.advice || 'Please book an appointment so a clinician can review your symptoms.').trim(),
@@ -671,10 +682,14 @@ app.post('/api/patient-specialty-advice', requireAuth, requireRoles('patient'), 
   const specialties = specialtyRows.map((row) => row.specialty).filter(Boolean);
   const advice = await getChatSpecialtyAdvice({ diagnosis, specialties });
 
+  if (advice.isMedical === false) {
+    res.json(advice);
+    return;
+  }
+
   res.json({
     ...advice,
     specialties,
-    disclaimer: 'This is not a medical diagnosis. For severe or worsening symptoms, seek urgent medical care.',
   });
 }));
 
