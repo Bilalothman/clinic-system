@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useApi } from '../../hooks/useApi';
 import LoadingSpinner from '../common/LoadingSpinner';
+import GoogleSignInButton from './GoogleSignInButton';
 import '../auth/Login.css';
 import '../auth/Register.css';
 
@@ -28,6 +29,20 @@ const Register = () => {
   const { login } = useAuth();
   const { apiCall } = useApi();
 
+  const redirectByRole = useCallback((role) => {
+    if (role === 'manager') {
+      navigate('/manager');
+      return;
+    }
+
+    if (role === 'doctor') {
+      navigate('/doctor');
+      return;
+    }
+
+    navigate('/patient');
+  }, [navigate]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -46,13 +61,32 @@ const Register = () => {
       });
 
       login(result.role, result.userId, result.token, result.profile || {});
-      navigate('/patient');
+      redirectByRole(result.role);
     } catch (apiError) {
       setError(apiError.message);
     } finally {
       setLoading(false);
     }
   };
+
+  const handleGoogleCredential = useCallback(async (credential) => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const result = await apiCall('/auth/google', {
+        method: 'POST',
+        body: JSON.stringify({ credential }),
+      });
+
+      login(result.role, result.userId, result.token, result.profile || {});
+      redirectByRole(result.role);
+    } catch (apiError) {
+      setError(apiError.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [apiCall, login, redirectByRole]);
 
   return (
     <div className="auth-container">
@@ -161,6 +195,9 @@ const Register = () => {
             {loading ? <LoadingSpinner /> : 'Create Patient Account'}
           </button>
         </form>
+
+        <div className="auth-divider"><span>or</span></div>
+        <GoogleSignInButton onCredential={handleGoogleCredential} disabled={loading} />
 
         <div className="auth-footer">
           <p>Already have account? <a href="/login">Sign In</a></p>

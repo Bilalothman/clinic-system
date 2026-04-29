@@ -4,6 +4,7 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const OpenAI = require('openai');
+const { OAuth2Client } = require('google-auth-library');
 const { query } = require('./db');
 const { requireAuth, requireRoles } = require('./middleware/auth');
 
@@ -11,6 +12,8 @@ const app = express();
 const PORT = Number(process.env.PORT || 3001);
 const startedAt = new Date().toISOString();
 const medicalDisclaimer = 'This is not a medical diagnosis. For severe or worsening symptoms, seek urgent medical care.';
+const googleClientId = process.env.GOOGLE_CLIENT_ID || process.env.REACT_APP_GOOGLE_CLIENT_ID || '';
+const googleClient = new OAuth2Client(googleClientId);
 let startupDbStatus = { ok: false, checkedAt: null, error: null };
 const defaultDoctorTimeSlots = [
   '08:00 AM',
@@ -246,6 +249,39 @@ const signToken = (role, userId) => jwt.sign(
   process.env.JWT_SECRET || 'clinic-dev-secret',
   { expiresIn: '7d' }
 );
+
+const verifyGoogleCredential = async (credential) => {
+  if (!googleClientId) {
+    const error = new Error('Google login is not configured. Set GOOGLE_CLIENT_ID on the server.');
+    error.statusCode = 503;
+    throw error;
+  }
+
+  if (!credential) {
+    const error = new Error('Google credential is required.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const ticket = await googleClient.verifyIdToken({
+    idToken: credential,
+    audience: googleClientId,
+  });
+  const payload = ticket.getPayload();
+
+  if (!payload?.email || payload.email_verified !== true) {
+    const error = new Error('Google account email must be verified.');
+    error.statusCode = 401;
+    throw error;
+  }
+
+  return {
+    email: String(payload.email).trim().toLowerCase(),
+    name: String(payload.name || payload.email.split('@')[0]).trim(),
+    picture: payload.picture || '',
+    googleId: payload.sub,
+  };
+};
 
 const doctorById = async (doctorId) => {
   const rows = await query('SELECT * FROM doctor WHERE doctor_id = ?', [doctorId]);
@@ -539,6 +575,54 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
   const token = signToken('patient', insert.insertId);
 
   res.status(201).json({ token, role: 'patient', userId: String(insert.insertId), profile });
+}));
+
+app.post('/api/auth/google', asyncHandler(async (req, res) => {
+  const googleUser = await verifyGoogleCredential(req.body?.credential);
+
+  const doctorRows = await query('SELECT * FROM doctor WHERE LOWER(email) = LOWER(?) LIMIT 1', [googleUser.email]);
+  if (doctorRows[0]) {
+    const doctor = doctorRows[0];
+    const role = doctor.role === 'manager' ? 'manager' : 'doctor';
+    const token = signToken(role, doctor.doctor_id);
+    const profile = await buildProfile(role, doctor.doctor_id);
+
+    res.json({ token, role, userId: String(doctor.doctor_id), profile });
+    return;
+  }
+
+  const patientRows = await query('SELECT * FROM patient WHERE LOWER(email) = LOWER(?) LIMIT 1', [googleUser.email]);
+  let patient = patientRows[0];
+
+  if (!patient) {
+    const generatedPassword = await bcrypt.hash(`google:${googleUser.googleId}:${Date.now()}`, 10);
+    const insert = await query(
+      `INSERT INTO patient
+        (full_name, email, password, phone, address, status, profile_image, profile_image_name)
+       VALUES (?, ?, ?, ?, ?, 'active', ?, ?)`,
+      [
+        googleUser.name || googleUser.email,
+        googleUser.email,
+        generatedPassword,
+        '-',
+        'Registered with Google',
+        googleUser.picture || null,
+        googleUser.picture ? 'Google profile photo' : null,
+      ]
+    );
+
+    patient = await patientById(insert.insertId);
+  }
+
+  const token = signToken('patient', patient.patient_id);
+  const profile = await buildProfile('patient', patient.patient_id);
+
+  res.status(patientRows[0] ? 200 : 201).json({
+    token,
+    role: 'patient',
+    userId: String(patient.patient_id),
+    profile,
+  });
 }));
 
 app.get('/api/auth/me', requireAuth, asyncHandler(async (req, res) => {

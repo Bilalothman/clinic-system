@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useApi } from '../../hooks/useApi';
 import LoadingSpinner from '../common/LoadingSpinner';
+import GoogleSignInButton from './GoogleSignInButton';
 import '../auth/Login.css';
 
 const Login = () => {
@@ -13,7 +14,7 @@ const Login = () => {
   const { login } = useAuth();
   const { apiCall } = useApi();
 
-  const redirectByRole = (role) => {
+  const redirectByRole = useCallback((role) => {
     if (role === 'manager') {
       navigate('/manager');
       return;
@@ -25,7 +26,7 @@ const Login = () => {
     }
 
     navigate('/patient');
-  };
+  }, [navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -46,6 +47,25 @@ const Login = () => {
       setLoading(false);
     }
   };
+
+  const handleGoogleCredential = useCallback(async (credential) => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const result = await apiCall('/auth/google', {
+        method: 'POST',
+        body: JSON.stringify({ credential }),
+      });
+
+      login(result.role, result.userId, result.token, result.profile || {});
+      redirectByRole(result.role);
+    } catch (apiError) {
+      setError(apiError.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [apiCall, login, redirectByRole]);
 
   return (
     <div className="auth-container">
@@ -84,6 +104,9 @@ const Login = () => {
             {loading ? <LoadingSpinner /> : 'Sign In'}
           </button>
         </form>
+
+        <div className="auth-divider"><span>or</span></div>
+        <GoogleSignInButton onCredential={handleGoogleCredential} disabled={loading} />
 
         <div className="auth-footer">
           <p>Do not have an account? <a href="/register">Register as Patient</a></p>
