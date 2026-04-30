@@ -71,6 +71,16 @@
   font-weight: 600;
 }
 
+.booking-block-reason {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  background: #fff1f2;
+  color: #b91c1c;
+  font-weight: 700;
+}
+
 .patient-appointments-filter {
   display: flex;
   flex-wrap: wrap;

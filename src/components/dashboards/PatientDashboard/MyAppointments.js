@@ -31,6 +31,24 @@ const getWeekdayFromDate = (dateString) => {
   return date.toLocaleDateString('en-US', { weekday: 'long' });
 };
 
+const requiredPatientProfileFields = [
+  ['name', 'Full Name'],
+  ['email', 'Email'],
+  ['phone', 'Phone'],
+  ['gender', 'Gender'],
+  ['dob', 'Date Of Birth'],
+  ['address', 'Address'],
+];
+
+const getMissingPatientProfileFields = (profile = {}) => {
+  return requiredPatientProfileFields
+    .filter(([field]) => {
+      const value = String(profile[field] || '').trim();
+      return !value || value === '-' || value.toLowerCase() === 'registered with google';
+    })
+    .map(([, label]) => label);
+};
+
 const getAppointmentDateTime = (dateString, timeString) => {
   if (!dateString || !timeString) {
     return null;
@@ -122,6 +140,7 @@ const MyAppointments = () => {
   const [dateFilter, setDateFilter] = useState('');
   const [implementationFilter, setImplementationFilter] = useState('all');
   const [currentDateTime, setCurrentDateTime] = useState(() => new Date());
+  const [bookingBlockReason, setBookingBlockReason] = useState('');
 
   const patientId = user?.userId || '';
   const patientName = user?.profile?.name || (patientId ? `Patient ${patientId}` : 'Patient');
@@ -362,6 +381,16 @@ const MyAppointments = () => {
 
   const handleBookAppointment = async (e) => {
     e.preventDefault();
+    const missingProfileFields = getMissingPatientProfileFields(user?.profile || {});
+
+    if (missingProfileFields.length) {
+      const reason = `Please complete your profile before booking an appointment. Missing: ${missingProfileFields.join(', ')}.`;
+      setBookingBlockReason(reason);
+      setFeedback(reason);
+      return;
+    }
+
+    setBookingBlockReason('');
 
     if (bookingForm.date && bookingForm.date < todayIso) {
       setFeedback('Please choose today or a future date. Old dates are not allowed.');
@@ -511,6 +540,12 @@ const MyAppointments = () => {
         <button type="submit" className="btn-primary">
           Book Appointment
         </button>
+
+        {bookingBlockReason && (
+          <div className="booking-block-reason" role="alert">
+            {bookingBlockReason}
+          </div>
+        )}
       </form>
 
       <div className="patient-appointments-filter">

@@ -227,6 +227,26 @@ const formatAppointment = (row) => ({
   preFeeImageName: row.pre_fee_image_name || '',
 });
 
+const isMissingProfileValue = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return !normalized || normalized === '-' || normalized === 'registered with google';
+};
+
+const getMissingPatientProfileFields = (patient) => {
+  const requiredFields = [
+    ['full_name', 'Full Name'],
+    ['email', 'Email'],
+    ['phone', 'Phone'],
+    ['gender', 'Gender'],
+    ['dob', 'Date Of Birth'],
+    ['address', 'Address'],
+  ];
+
+  return requiredFields
+    .filter(([field]) => isMissingProfileValue(patient?.[field]))
+    .map(([, label]) => label);
+};
+
 // Support both hashed passwords and older plain-text seed data during login.
 const passwordMatches = async (plain, stored) => {
   if (!stored) {
@@ -1882,6 +1902,18 @@ app.post('/api/appointments', requireAuth, asyncHandler(async (req, res) => {
   if (!specialty || !date || !time || !reason) {
     res.status(400).json({ message: 'Missing required appointment fields.' });
     return;
+  }
+
+  if (req.user.role === 'patient') {
+    const currentPatient = await patientById(req.user.userId);
+    const missingProfileFields = getMissingPatientProfileFields(currentPatient);
+
+    if (missingProfileFields.length) {
+      res.status(400).json({
+        message: `Please complete your profile before booking an appointment. Missing: ${missingProfileFields.join(', ')}.`,
+      });
+      return;
+    }
   }
 
   if (isBeforeToday(date)) {
