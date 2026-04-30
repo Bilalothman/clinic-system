@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
 import { useApi } from '../../../hooks/useApi';
 import './MyAppointments.css';
@@ -93,6 +94,8 @@ const formatClinicTimeRange = (times) => {
   return `From: ${times[0]} to ${times[times.length - 1]}`;
 };
 
+const normalizeText = (value) => String(value || '').trim().toLowerCase();
+
 const compressImageToDataUrl = (file) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -132,6 +135,8 @@ const compressImageToDataUrl = (file) =>
 const MyAppointments = () => {
   const { user } = useAuth();
   const { apiCall } = useApi();
+  const location = useLocation();
+  const appliedAiAppointmentRef = useRef('');
   const [allAppointments, setAllAppointments] = useState([]);
   const [selectedDoctorAppointments, setSelectedDoctorAppointments] = useState([]);
   const [doctors, setDoctors] = useState([]);
@@ -150,16 +155,6 @@ const MyAppointments = () => {
     try {
       const doctorsResponse = await apiCall('/doctors');
       setDoctors(doctorsResponse || []);
-
-      if (doctorsResponse?.length) {
-        const firstDoctor = doctorsResponse[0];
-        setBookingForm((current) => ({
-          ...current,
-          doctor: current.doctor || firstDoctor.name,
-          specialty: current.specialty || firstDoctor.specialty,
-          time: current.time || firstDoctor.availableTimes?.[0] || '',
-        }));
-      }
     } catch (error) {
       setFeedback(error.message);
     }
@@ -216,6 +211,41 @@ const MyAppointments = () => {
       return acc;
     }, {});
   }, [doctors]);
+
+  useEffect(() => {
+    const aiAppointment = location.state?.aiAppointment;
+    const recommendedSpecialty = normalizeText(aiAppointment?.specialty);
+
+    if (!recommendedSpecialty || !doctors.length) {
+      return;
+    }
+
+    const applyKey = `${location.key}:${recommendedSpecialty}:${aiAppointment?.reason || ''}`;
+    if (appliedAiAppointmentRef.current === applyKey) {
+      return;
+    }
+
+    const recommendedDoctor = doctors.find((doctor) =>
+      normalizeText(doctor.specialty) === recommendedSpecialty
+    );
+
+    if (!recommendedDoctor) {
+      setBookingForm(emptyForm);
+      setFeedback(`AI recommended ${aiAppointment.specialty}, but no doctor is available for that specialty right now.`);
+      appliedAiAppointmentRef.current = applyKey;
+      return;
+    }
+
+    setBookingForm((current) => ({
+      ...current,
+      doctor: recommendedDoctor.name,
+      specialty: recommendedDoctor.specialty,
+      reason: current.reason || aiAppointment.reason || '',
+      time: recommendedDoctor.availableTimes?.[0] || '',
+    }));
+    setFeedback(`AI recommended ${recommendedDoctor.specialty}. ${recommendedDoctor.name} was selected for you.`);
+    appliedAiAppointmentRef.current = applyKey;
+  }, [doctors, location.key, location.state]);
 
   const appointments = useMemo(
     () => allAppointments.filter((appointment) => String(appointment.patientId || '') === String(patientId)),
@@ -275,13 +305,13 @@ const MyAppointments = () => {
   }, [bookingForm.date, selectedDoctorAppointments]);
 
   const isSelectedDateAvailable = useMemo(() => {
-    if (!bookingForm.date) {
+    if (!bookingForm.date || !bookingForm.doctor) {
       return true;
     }
 
     const weekday = getWeekdayFromDate(bookingForm.date);
     return selectedDoctorSchedule.days.includes(weekday);
-  }, [bookingForm.date, selectedDoctorSchedule.days]);
+  }, [bookingForm.date, bookingForm.doctor, selectedDoctorSchedule.days]);
 
   const availableTimesForSelectedDate = useMemo(() => {
     if (!bookingForm.date || !isSelectedDateAvailable) {
@@ -305,6 +335,16 @@ const MyAppointments = () => {
   }, [availableTimesForSelectedDate, bookingForm.date, bookingForm.time]);
 
   const handleDoctorChange = (doctor) => {
+    if (!doctor) {
+      setBookingForm((current) => ({
+        ...current,
+        doctor: '',
+        specialty: '',
+        time: '',
+      }));
+      return;
+    }
+
     const doctorSchedule = doctorAvailability[doctor] || { days: [], times: [] };
     const dateIsAvailable =
       !bookingForm.date || doctorSchedule.days.includes(getWeekdayFromDate(bookingForm.date));
@@ -333,6 +373,15 @@ const MyAppointments = () => {
         time: '',
       }));
       setFeedback('Please choose today or a future date. Old dates are not allowed.');
+      return;
+    }
+
+    if (!bookingForm.doctor) {
+      setBookingForm((current) => ({
+        ...current,
+        date,
+        time: '',
+      }));
       return;
     }
 
@@ -408,6 +457,10 @@ const MyAppointments = () => {
     }
 
     const selectedDoctor = doctors.find((doctor) => doctor.name === bookingForm.doctor);
+    if (!selectedDoctor) {
+      setFeedback('Please choose a doctor before booking an appointment.');
+      return;
+    }
 
     try {
       const created = await apiCall('/appointments', {
@@ -431,12 +484,7 @@ const MyAppointments = () => {
 
       setAllAppointments((current) => [created, ...current]);
       setFeedback(`Appointment request sent to ${created.doctor} for ${created.date} at ${created.time}.`);
-      setBookingForm({
-        ...emptyForm,
-        doctor: bookingForm.doctor,
-        specialty: doctorOptions[bookingForm.doctor],
-        time: (doctorAvailability[bookingForm.doctor]?.times || [])[0] || '',
-      });
+      setBookingForm(emptyForm);
     } catch (error) {
       setFeedback(error.message);
     }
@@ -458,7 +506,9 @@ const MyAppointments = () => {
               id="doctor"
               value={bookingForm.doctor}
               onChange={(e) => handleDoctorChange(e.target.value)}
+              required
             >
+              <option value="">Select a doctor</option>
               {Object.keys(doctorOptions).map((doctor) => (
                 <option key={doctor} value={doctor}>
                   {doctor}

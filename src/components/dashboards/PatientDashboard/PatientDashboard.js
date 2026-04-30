@@ -431,7 +431,16 @@ const PatientOverview = () => {
                           {advice.appointmentReason && (
                             <p className="patient-specialty-reason">Appointment reason: {advice.appointmentReason}</p>
                           )}
-                          <NavLink to="/patient/appointments" className="patient-specialty-book-link">
+                          <NavLink
+                            to="/patient/appointments"
+                            state={{
+                              aiAppointment: {
+                                specialty: advice.specialty,
+                                reason: advice.appointmentReason || '',
+                              },
+                            }}
+                            className="patient-specialty-book-link"
+                          >
                             Book Appointment
                           </NavLink>
                         </>
