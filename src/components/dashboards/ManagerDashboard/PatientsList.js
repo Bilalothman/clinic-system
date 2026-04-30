@@ -79,7 +79,7 @@ const PatientsList = () => {
     }
 
     return scopedPatients.filter((patient) =>
-      [patient.name, patient.phone, patient.doctor].some((value) =>
+      [patient.name, patient.phone, patient.doctor, patient.status].some((value) =>
         String(value || '').toLowerCase().includes(query)
       )
     );
@@ -159,7 +159,7 @@ const PatientsList = () => {
       setFeedback(
         nextStatus === 'inactive'
           ? `${updated.name} was blocked and cannot book appointments.`
-          : `${updated.name} was unblocked and can book appointments again.`
+          : `${updated.name} was released. Report count reset to 0.`
       );
     } catch (error) {
       setFeedback(error.message);
@@ -321,7 +321,13 @@ const PatientsList = () => {
               <div className="patient-avatar">P</div>
               <div>
                 <h4>{patient.name}</h4>
-                <p>{calculateAgeFromDob(patient.dob) ?? patient.age ?? '-'} years | {patient.phone} | {patient.status === 'active' ? 'Active' : 'Blocked'}</p>
+                <p>
+                  {calculateAgeFromDob(patient.dob) ?? patient.age ?? '-'} years | {patient.phone} | {patient.status === 'active' ? 'Active' : 'Blocked'}
+                </p>
+                <div className="patient-report-meta">
+                  <span>{patient.reportCount || 0}/3 doctor reports</span>
+                  {patient.blockedByReports && <span className="patient-report-alert">Auto-blocked</span>}
+                </div>
               </div>
             </div>
             <div className="patient-meta">
@@ -337,7 +343,7 @@ const PatientsList = () => {
                   className={patient.status === 'active' ? 'btn-danger btn-sm' : 'btn-secondary btn-sm'}
                   onClick={() => handleTogglePatientStatus(patient)}
                 >
-                  {patient.status === 'active' ? 'Block' : 'Unblock'}
+                  {patient.status === 'active' ? 'Block' : 'Release Block'}
                 </button>
                 <button type="button" className="btn-danger btn-sm" onClick={() => handleDeletePatient(patient.id)}>
                   Delete
@@ -361,6 +367,7 @@ const PatientsList = () => {
             <span><strong>Phone:</strong> {selectedPatient.phone}</span>
             <span><strong>Age:</strong> {calculateAgeFromDob(selectedPatient.dob) ?? selectedPatient.age ?? '-'}</span>
             <span><strong>Status:</strong> {selectedPatient.status === 'active' ? 'Active' : 'Blocked'}</span>
+            <span><strong>Doctor reports:</strong> {selectedPatient.reportCount || 0}/3</span>
           </div>
           <p className="patient-notes">{selectedPatient.notes}</p>
         </div>

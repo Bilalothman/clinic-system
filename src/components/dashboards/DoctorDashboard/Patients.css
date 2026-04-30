@@ -92,6 +92,43 @@
   font-size: 0.9rem;
 }
 
+.patient-report-feedback {
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  background: rgba(14, 165, 233, 0.1);
+  border: 1px solid rgba(14, 165, 233, 0.24);
+  color: #075985;
+  font-weight: 600;
+}
+
+.patient-report-status {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+  color: #475569;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.patient-report-status span {
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.patient-report-status .patient-status-active {
+  color: #047857;
+  background: rgba(16, 185, 129, 0.14);
+}
+
+.patient-report-status .patient-status-blocked {
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.14);
+}
+
 .btn-full {
   width: 100%;
 }

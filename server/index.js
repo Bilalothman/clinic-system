@@ -226,6 +226,9 @@ const formatPatient = (row) => ({
   nextVisit: row.next_visit || row.last_visit || 'TBD',
   profileImage: row.profile_image || '',
   profileImageName: row.profile_image_name || '',
+  reportCount: Number(row.report_count || 0),
+  currentDoctorReported: Boolean(row.current_doctor_report_id),
+  blockedByReports: row.status === 'inactive' && Number(row.report_count || 0) >= 3,
 });
 
 const formatAppointment = (row) => ({
@@ -488,6 +491,41 @@ const patientHasDoctorAppointment = async (patientId, doctorId) => {
   );
 
   return Boolean(rows[0]);
+};
+
+const patientSelectReportFields = (doctorId = null) => {
+  const currentDoctorField = doctorId
+    ? `(SELECT pr.patient_report_id
+        FROM patient_report pr
+        WHERE pr.patient_id = p.patient_id
+          AND pr.doctor_id = ?
+        LIMIT 1) AS current_doctor_report_id`
+    : 'NULL AS current_doctor_report_id';
+
+  return `(
+        SELECT COUNT(DISTINCT pr.doctor_id)
+        FROM patient_report pr
+        WHERE pr.patient_id = p.patient_id
+      ) AS report_count,
+      ${currentDoctorField}`;
+};
+
+const patientResponseById = async (patientId, doctorId = null) => {
+  const params = doctorId ? [Number(doctorId), Number(patientId)] : [Number(patientId)];
+  const rows = await query(
+    `SELECT
+      p.*,
+      d.full_name AS doctor_name,
+      NULL AS latest_diagnosis,
+      NULL AS next_visit,
+      ${patientSelectReportFields(doctorId)}
+     FROM patient p
+     LEFT JOIN doctor d ON d.doctor_id = p.assigned_doctor_id
+     WHERE p.patient_id = ?`,
+    params
+  );
+
+  return rows[0] ? formatPatient(rows[0]) : null;
 };
 
 const extractJsonObject = (value) => {
@@ -1824,6 +1862,7 @@ app.get('/api/patients', requireAuth, asyncHandler(async (req, res) => {
   }
 
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  const selectParams = scopedDoctorId ? [scopedDoctorId] : [];
 
   const rows = await query(
     `SELECT
@@ -1842,12 +1881,13 @@ app.get('/api/patients', requireAuth, asyncHandler(async (req, res) => {
         WHERE a.patient_id = p.patient_id AND a.appointment_date >= CURDATE()
         ORDER BY a.appointment_date ASC, a.appointment_time ASC
         LIMIT 1
-      ) AS next_visit
+      ) AS next_visit,
+      ${patientSelectReportFields(scopedDoctorId)}
      FROM patient p
      LEFT JOIN doctor d ON d.doctor_id = p.assigned_doctor_id
      ${where}
      ORDER BY p.full_name ASC`,
-    params
+    [...selectParams, ...params]
   );
 
   res.json(rows.map(formatPatient));
@@ -1887,7 +1927,8 @@ app.post('/api/patients', requireAuth, requireRoles('manager'), asyncHandler(asy
   );
 
   const rows = await query(
-    `SELECT p.*, d.full_name AS doctor_name, NULL AS latest_diagnosis, NULL AS next_visit
+    `SELECT p.*, d.full_name AS doctor_name, NULL AS latest_diagnosis, NULL AS next_visit,
+        ${patientSelectReportFields()}
      FROM patient p
      LEFT JOIN doctor d ON d.doctor_id = p.assigned_doctor_id
      WHERE p.patient_id = ?`,
@@ -1942,8 +1983,13 @@ app.put('/api/patients/:id', requireAuth, requireRoles('manager'), asyncHandler(
     ]
   );
 
+  if (existing.status === 'inactive' && nextStatus === 'active') {
+    await query('DELETE FROM patient_report WHERE patient_id = ?', [patientId]);
+  }
+
   const rows = await query(
-    `SELECT p.*, d.full_name AS doctor_name, NULL AS latest_diagnosis, NULL AS next_visit
+    `SELECT p.*, d.full_name AS doctor_name, NULL AS latest_diagnosis, NULL AS next_visit,
+        ${patientSelectReportFields()}
      FROM patient p
      LEFT JOIN doctor d ON d.doctor_id = p.assigned_doctor_id
      WHERE p.patient_id = ?`,
@@ -1957,6 +2003,64 @@ app.delete('/api/patients/:id', requireAuth, requireRoles('manager'), asyncHandl
   const patientId = Number(req.params.id);
   await query('DELETE FROM patient WHERE patient_id = ?', [patientId]);
   res.json({ ok: true });
+}));
+
+app.post('/api/patients/:id/reports', requireAuth, requireRoles('doctor'), asyncHandler(async (req, res) => {
+  const patientId = Number(req.params.id);
+  const doctorId = Number(req.user.userId);
+  const reason = String(req.body?.reason || '').trim();
+
+  if (!Number.isFinite(patientId) || patientId <= 0) {
+    res.status(400).json({ message: 'Invalid patient.' });
+    return;
+  }
+
+  const patient = await patientById(patientId);
+  if (!patient) {
+    res.status(404).json({ message: 'Patient not found.' });
+    return;
+  }
+
+  const canReportPatient = await patientHasDoctorAppointment(patientId, doctorId);
+  if (!canReportPatient) {
+    res.status(403).json({ message: 'You can only report patients who have appointments with you.' });
+    return;
+  }
+
+  const existingReport = await query(
+    'SELECT patient_report_id FROM patient_report WHERE patient_id = ? AND doctor_id = ? LIMIT 1',
+    [patientId, doctorId]
+  );
+
+  if (existingReport[0]) {
+    res.status(409).json({ message: 'You have already reported this patient.' });
+    return;
+  }
+
+  await query(
+    'INSERT INTO patient_report (patient_id, doctor_id, reason) VALUES (?, ?, ?)',
+    [patientId, doctorId, reason || null]
+  );
+
+  const reportCountRows = await query(
+    'SELECT COUNT(DISTINCT doctor_id) AS total FROM patient_report WHERE patient_id = ?',
+    [patientId]
+  );
+  const reportCount = Number(reportCountRows[0]?.total || 0);
+
+  if (reportCount >= 3) {
+    await query('UPDATE patient SET status = ? WHERE patient_id = ?', ['inactive', patientId]);
+  }
+
+  const updated = await patientResponseById(patientId, doctorId);
+  res.status(201).json({
+    patient: updated,
+    reportCount,
+    blocked: updated?.status === 'inactive',
+    message: reportCount >= 3
+      ? 'Patient reached 3 doctor reports and was blocked automatically.'
+      : `Patient reported. Current report count: ${reportCount}/3.`,
+  });
 }));
 
 app.get('/api/appointments', requireAuth, asyncHandler(async (req, res) => {
@@ -2582,6 +2686,25 @@ const checkDatabaseOnStartup = async () => {
         KEY idx_patient_complaint_status (status),
         CONSTRAINT fk_patient_complaint_patient
           FOREIGN KEY (patient_id) REFERENCES patient(patient_id)
+          ON DELETE CASCADE
+      ) ENGINE=InnoDB`
+    );
+    await query(
+      `CREATE TABLE IF NOT EXISTS patient_report (
+        patient_report_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        patient_id BIGINT UNSIGNED NOT NULL,
+        doctor_id BIGINT UNSIGNED NOT NULL,
+        reason TEXT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (patient_report_id),
+        UNIQUE KEY uq_patient_report_patient_doctor (patient_id, doctor_id),
+        KEY idx_patient_report_patient (patient_id),
+        KEY idx_patient_report_doctor (doctor_id),
+        CONSTRAINT fk_patient_report_patient
+          FOREIGN KEY (patient_id) REFERENCES patient(patient_id)
+          ON DELETE CASCADE,
+        CONSTRAINT fk_patient_report_doctor
+          FOREIGN KEY (doctor_id) REFERENCES doctor(doctor_id)
           ON DELETE CASCADE
       ) ENGINE=InnoDB`
     );

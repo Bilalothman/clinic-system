@@ -97,6 +97,27 @@
   font-size: 0.95rem;
 }
 
+.patient-report-meta {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  margin-top: 0.45rem;
+}
+
+.patient-report-meta span {
+  padding: 0.22rem 0.5rem;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.patient-report-meta .patient-report-alert {
+  background: rgba(239, 68, 68, 0.14);
+  color: #b91c1c;
+}
+
 .patient-meta {
   display: flex;
   flex-direction: column;

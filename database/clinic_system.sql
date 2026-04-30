@@ -14,6 +14,7 @@ USE clinic_system_db;
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS bills;
+DROP TABLE IF EXISTS patient_report;
 DROP TABLE IF EXISTS patient_complaint;
 DROP TABLE IF EXISTS doctor_review;
 DROP TABLE IF EXISTS prescription;
@@ -238,6 +239,24 @@ CREATE TABLE patient_complaint (
     ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+CREATE TABLE patient_report (
+  patient_report_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  patient_id BIGINT UNSIGNED NOT NULL,
+  doctor_id BIGINT UNSIGNED NOT NULL,
+  reason TEXT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (patient_report_id),
+  UNIQUE KEY uq_patient_report_patient_doctor (patient_id, doctor_id),
+  KEY idx_patient_report_patient (patient_id),
+  KEY idx_patient_report_doctor (doctor_id),
+  CONSTRAINT fk_patient_report_patient
+    FOREIGN KEY (patient_id) REFERENCES patient(patient_id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_patient_report_doctor
+    FOREIGN KEY (doctor_id) REFERENCES doctor(doctor_id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- Demo data matching existing UI features.
 -- Manager + doctors in doctor table.
 INSERT INTO doctor (
@@ -337,3 +356,4 @@ ALTER TABLE prescription AUTO_INCREMENT = 100;
 ALTER TABLE lab_result AUTO_INCREMENT = 100;
 ALTER TABLE bills AUTO_INCREMENT = 100;
 ALTER TABLE doctor_review AUTO_INCREMENT = 100;
+ALTER TABLE patient_report AUTO_INCREMENT = 100;

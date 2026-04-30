@@ -50,6 +50,8 @@ const Patients = () => {
   const { apiCall } = useApi();
   const [patientList, setPatientList] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [feedback, setFeedback] = useState('');
+  const [reportingPatientId, setReportingPatientId] = useState(null);
 
   useEffect(() => {
     const loadPatients = async () => {
@@ -57,8 +59,10 @@ const Patients = () => {
         const doctorQuery = user?.userId ? `?doctorId=${user.userId}` : '';
         const rows = await apiCall(`/patients${doctorQuery}`);
         setPatientList(rows || []);
+        setFeedback('');
       } catch (error) {
         setPatientList([]);
+        setFeedback(error.message);
       }
     };
 
@@ -79,11 +83,46 @@ const Patients = () => {
     );
   }, [patientList, searchTerm]);
 
+  const handleReportPatient = async (patient) => {
+    if (patient.currentDoctorReported || patient.status !== 'active') {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Report ${patient.name}? If this patient receives reports from 3 different doctors, the account will be blocked automatically.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setReportingPatientId(patient.id);
+    setFeedback('');
+
+    try {
+      const result = await apiCall(`/patients/${patient.id}/reports`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: 'Reported from doctor dashboard' }),
+      });
+      const updatedPatient = result.patient;
+
+      setPatientList((current) =>
+        current.map((item) => (item.id === patient.id ? updatedPatient : item))
+      );
+      setFeedback(result.message || `${patient.name} was reported.`);
+    } catch (error) {
+      setFeedback(error.message);
+    } finally {
+      setReportingPatientId(null);
+    }
+  };
+
   return (
     <div className="card fade-in-left">
       <div className="card-header">
         <h3>All Patients</h3>
       </div>
+      {feedback && <div className="patient-report-feedback">{feedback}</div>}
       <input
         type="search"
         className="patient-search"
@@ -104,6 +143,12 @@ const Patients = () => {
             <h4>{patient.name}</h4>
             <p className="condition">{patient.condition}</p>
             <span className="next-visit">Next: {formatDisplayDate(patient.nextVisit)}</span>
+            <div className="patient-report-status">
+              <span className={patient.status === 'active' ? 'patient-status-active' : 'patient-status-blocked'}>
+                {patient.status === 'active' ? 'Active' : 'Blocked'}
+              </span>
+              <span>{patient.reportCount || 0}/3 reports</span>
+            </div>
             <div className="patient-widget-info">
               <span><strong>DOB:</strong> {formatDisplayDate(patient.dob)}</span>
               <span><strong>Age:</strong> {calculateAgeFromDob(patient.dob) ?? patient.age ?? '-'}</span>
@@ -112,6 +157,20 @@ const Patients = () => {
               <span><strong>Email:</strong> {patient.email || '-'}</span>
               <span><strong>Address:</strong> {patient.address || '-'}</span>
             </div>
+            <button
+              type="button"
+              className={patient.currentDoctorReported || patient.status !== 'active' ? 'btn-secondary btn-full' : 'btn-danger btn-full'}
+              disabled={patient.currentDoctorReported || patient.status !== 'active' || reportingPatientId === patient.id}
+              onClick={() => handleReportPatient(patient)}
+            >
+              {reportingPatientId === patient.id
+                ? 'Reporting...'
+                : patient.currentDoctorReported
+                  ? 'Reported'
+                  : patient.status !== 'active'
+                    ? 'Patient Blocked'
+                    : 'Report Patient'}
+            </button>
           </div>
         ))}
       </div>
