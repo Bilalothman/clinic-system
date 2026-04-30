@@ -10,6 +10,7 @@ const emptyForm = {
   date: '',
   time: '',
   reason: '',
+  paymentMethod: '',
   preFeeImage: '',
   preFeeImageName: '',
 };
@@ -95,6 +96,7 @@ const formatClinicTimeRange = (times) => {
 };
 
 const normalizeText = (value) => String(value || '').trim().toLowerCase();
+const blockedPatientMessage = 'Your account is blocked by the clinic manager, so you cannot book appointments. Please contact us at 03216269 to remove the block.';
 
 const compressImageToDataUrl = (file) =>
   new Promise((resolve, reject) => {
@@ -133,7 +135,7 @@ const compressImageToDataUrl = (file) =>
   });
 
 const MyAppointments = () => {
-  const { user } = useAuth();
+  const { user, updateProfile } = useAuth();
   const { apiCall } = useApi();
   const location = useLocation();
   const appliedAiAppointmentRef = useRef('');
@@ -146,6 +148,7 @@ const MyAppointments = () => {
   const [implementationFilter, setImplementationFilter] = useState('all');
   const [currentDateTime, setCurrentDateTime] = useState(() => new Date());
   const [bookingBlockReason, setBookingBlockReason] = useState('');
+  const [patientAccountStatus, setPatientAccountStatus] = useState(user?.profile?.status || 'active');
 
   const patientId = user?.userId || '';
   const patientName = user?.profile?.name || (patientId ? `Patient ${patientId}` : 'Patient');
@@ -179,6 +182,32 @@ const MyAppointments = () => {
     loadAppointments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientId]);
+
+  useEffect(() => {
+    const loadCurrentPatientStatus = async () => {
+      if (user?.role !== 'patient') {
+        return;
+      }
+
+      try {
+        const response = await apiCall('/auth/me');
+        const nextProfile = response?.profile || {};
+        const nextStatus = nextProfile.status || 'active';
+
+        updateProfile(nextProfile);
+        setPatientAccountStatus(nextStatus);
+
+        if (nextStatus !== 'active') {
+          setBookingBlockReason(blockedPatientMessage);
+          setFeedback(blockedPatientMessage);
+        }
+      } catch (_error) {
+        setPatientAccountStatus(user?.profile?.status || 'active');
+      }
+    };
+
+    loadCurrentPatientStatus();
+  }, [apiCall, updateProfile, user?.profile?.status, user?.role]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -359,6 +388,16 @@ const MyAppointments = () => {
   };
 
   const handleFormChange = (field, value) => {
+    if (field === 'paymentMethod' && value === 'cash') {
+      setBookingForm((current) => ({
+        ...current,
+        paymentMethod: value,
+        preFeeImage: '',
+        preFeeImageName: '',
+      }));
+      return;
+    }
+
     setBookingForm((current) => ({
       ...current,
       [field]: value,
@@ -430,6 +469,13 @@ const MyAppointments = () => {
 
   const handleBookAppointment = async (e) => {
     e.preventDefault();
+
+    if (patientAccountStatus !== 'active') {
+      setBookingBlockReason(blockedPatientMessage);
+      setFeedback(blockedPatientMessage);
+      return;
+    }
+
     const missingProfileFields = getMissingPatientProfileFields(user?.profile || {});
 
     if (missingProfileFields.length) {
@@ -456,6 +502,16 @@ const MyAppointments = () => {
       return;
     }
 
+    if (!bookingForm.paymentMethod) {
+      setFeedback('Please choose a payment method.');
+      return;
+    }
+
+    if (bookingForm.paymentMethod === 'whish' && !bookingForm.preFeeImage) {
+      setFeedback('Please upload the Whish pre-fee payment image.');
+      return;
+    }
+
     const selectedDoctor = doctors.find((doctor) => doctor.name === bookingForm.doctor);
     if (!selectedDoctor) {
       setFeedback('Please choose a doctor before booking an appointment.');
@@ -477,6 +533,7 @@ const MyAppointments = () => {
           status: 'pending',
           duration: '15min',
           doctorFee: selectedDoctorFee,
+          paymentMethod: bookingForm.paymentMethod,
           preFeeImage: bookingForm.preFeeImage,
           preFeeImageName: bookingForm.preFeeImageName,
         }),
@@ -568,12 +625,28 @@ const MyAppointments = () => {
         </div>
 
         <div className="booking-field">
-          <label htmlFor="pre-fee-image">Pre-fee Image (optional)</label>
-          <input id="pre-fee-image" type="file" accept="image/*" onChange={handlePreFeeImageChange} />
-          {bookingForm.preFeeImageName && (
-            <div className="selected-file">Selected: {bookingForm.preFeeImageName}</div>
-          )}
+          <label htmlFor="payment-method">Payment Method</label>
+          <select
+            id="payment-method"
+            value={bookingForm.paymentMethod}
+            onChange={(e) => handleFormChange('paymentMethod', e.target.value)}
+            required
+          >
+            <option value="">Select payment method</option>
+            <option value="cash">Cash</option>
+            <option value="whish">Whish</option>
+          </select>
         </div>
+
+        {bookingForm.paymentMethod === 'whish' && (
+          <div className="booking-field">
+            <label htmlFor="pre-fee-image">Whish Pre-fee Image</label>
+            <input id="pre-fee-image" type="file" accept="image/*" onChange={handlePreFeeImageChange} required />
+            {bookingForm.preFeeImageName && (
+              <div className="selected-file">Selected: {bookingForm.preFeeImageName}</div>
+            )}
+          </div>
+        )}
 
         <div className="doctor-fee-note">
           Doctor Fee: <strong>${selectedDoctorFee}</strong>
@@ -657,6 +730,11 @@ const MyAppointments = () => {
                 <div>{appointment.time}</div>
               </div>
               <p className="appointment-reason">{appointment.reason}</p>
+              {appointment.paymentMethod && (
+                <div className="attachment-note">
+                  Payment method: {appointment.paymentMethod === 'whish' ? 'Whish' : 'Cash'}
+                </div>
+              )}
               {appointment.preFeeImage && <div className="attachment-note">Pre-fee image attached</div>}
             </div>
           );

@@ -6,18 +6,39 @@ const emptyPatient = {
   name: '',
   email: '',
   password: '',
-  age: '',
   dob: '',
   phone: '',
   doctor: '',
   notes: '',
 };
 
+const calculateAgeFromDob = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  const dob = new Date(value);
+  const today = new Date();
+
+  if (Number.isNaN(dob.getTime()) || dob > today) {
+    return null;
+  }
+
+  let age = today.getFullYear() - dob.getFullYear();
+  const birthdayThisYear = new Date(today.getFullYear(), dob.getMonth(), dob.getDate());
+
+  if (today < birthdayThisYear) {
+    age -= 1;
+  }
+
+  return age;
+};
+
 const PatientsList = () => {
   const { apiCall } = useApi();
   const [patients, setPatients] = useState([]);
   const [doctors, setDoctors] = useState([]);
-  const [showAll, setShowAll] = useState(false);
+  const [showAll, setShowAll] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [patientForm, setPatientForm] = useState(emptyPatient);
@@ -92,7 +113,6 @@ const PatientsList = () => {
       name: patient.name,
       email: patient.email || '',
       password: '',
-      age: String(patient.age || ''),
       dob: patient.dob || '',
       phone: patient.phone,
       doctor: patient.doctor,
@@ -123,6 +143,29 @@ const PatientsList = () => {
     }
   };
 
+  const handleTogglePatientStatus = async (patient) => {
+    const nextStatus = patient.status === 'active' ? 'inactive' : 'active';
+
+    try {
+      const updated = await apiCall(`/patients/${patient.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: nextStatus }),
+      });
+
+      setPatients((current) =>
+        current.map((item) => (item.id === patient.id ? updated : item))
+      );
+      setSelectedPatient((current) => (current?.id === patient.id ? updated : current));
+      setFeedback(
+        nextStatus === 'inactive'
+          ? `${updated.name} was blocked and cannot book appointments.`
+          : `${updated.name} was unblocked and can book appointments again.`
+      );
+    } catch (error) {
+      setFeedback(error.message);
+    }
+  };
+
   const handleCancelEdit = () => {
     setEditingPatientId(null);
     setPatientForm(emptyPatient);
@@ -137,7 +180,6 @@ const PatientsList = () => {
       ...patientForm,
       name: patientForm.name.trim(),
       email: patientForm.email.trim(),
-      age: Number(patientForm.age),
       notes: patientForm.notes.trim(),
       assignedDoctorId: selectedDoctor?.id || null,
     };
@@ -186,7 +228,7 @@ const PatientsList = () => {
   return (
     <div className="card fade-in-up">
       <div className="card-header">
-        <h3>Recent Patients</h3>
+        <h3>{showAll ? 'All Patients' : 'Recent Patients'}</h3>
         <button type="button" className="btn-primary" onClick={handleToggleView}>
           {showAll ? 'Show Recent' : 'View All'}
         </button>
@@ -219,15 +261,6 @@ const PatientsList = () => {
             onChange={(e) => handleFormChange('password', e.target.value)}
             autoComplete="new-password"
             required={!editingPatientId}
-          />
-          <input
-            type="number"
-            min="0"
-            placeholder="Age"
-            value={patientForm.age}
-            onChange={(e) => handleFormChange('age', e.target.value)}
-            autoComplete="off"
-            required
           />
           <input
             type="text"
@@ -288,17 +321,23 @@ const PatientsList = () => {
               <div className="patient-avatar">P</div>
               <div>
                 <h4>{patient.name}</h4>
-                <p>{patient.age} years | {patient.phone}</p>
+                <p>{calculateAgeFromDob(patient.dob) ?? patient.age ?? '-'} years | {patient.phone} | {patient.status === 'active' ? 'Active' : 'Blocked'}</p>
               </div>
             </div>
             <div className="patient-meta">
-              <span className="last-visit">Last visit: {patient.lastVisit}</span>
               <div className="patient-actions">
                 <button type="button" className="btn-secondary btn-sm" onClick={() => setSelectedPatient(patient)}>
                   View
                 </button>
                 <button type="button" className="btn-secondary btn-sm" onClick={() => handleEditPatient(patient)}>
                   Edit
+                </button>
+                <button
+                  type="button"
+                  className={patient.status === 'active' ? 'btn-danger btn-sm' : 'btn-secondary btn-sm'}
+                  onClick={() => handleTogglePatientStatus(patient)}
+                >
+                  {patient.status === 'active' ? 'Block' : 'Unblock'}
                 </button>
                 <button type="button" className="btn-danger btn-sm" onClick={() => handleDeletePatient(patient.id)}>
                   Delete
@@ -318,10 +357,10 @@ const PatientsList = () => {
           <h4>{selectedPatient.name}</h4>
           <div className="detail-grid">
             <span><strong>Doctor:</strong> {selectedPatient.doctor}</span>
-            <span><strong>Last visit:</strong> {selectedPatient.lastVisit}</span>
             <span><strong>Date of birth:</strong> {selectedPatient.dob || '-'}</span>
             <span><strong>Phone:</strong> {selectedPatient.phone}</span>
-            <span><strong>Age:</strong> {selectedPatient.age}</span>
+            <span><strong>Age:</strong> {calculateAgeFromDob(selectedPatient.dob) ?? selectedPatient.age ?? '-'}</span>
+            <span><strong>Status:</strong> {selectedPatient.status === 'active' ? 'Active' : 'Blocked'}</span>
           </div>
           <p className="patient-notes">{selectedPatient.notes}</p>
         </div>

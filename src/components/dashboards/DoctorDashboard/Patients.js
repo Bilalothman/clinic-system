@@ -16,6 +16,28 @@ const formatDisplayDate = (value) => {
   return parsed.toISOString().slice(0, 10);
 };
 
+const calculateAgeFromDob = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  const dob = new Date(value);
+  const today = new Date();
+
+  if (Number.isNaN(dob.getTime()) || dob > today) {
+    return null;
+  }
+
+  let age = today.getFullYear() - dob.getFullYear();
+  const birthdayThisYear = new Date(today.getFullYear(), dob.getMonth(), dob.getDate());
+
+  if (today < birthdayThisYear) {
+    age -= 1;
+  }
+
+  return age;
+};
+
 const getInitials = (name) => String(name || 'P')
   .trim()
   .split(/\s+/)
@@ -84,7 +106,7 @@ const Patients = () => {
             <span className="next-visit">Next: {formatDisplayDate(patient.nextVisit)}</span>
             <div className="patient-widget-info">
               <span><strong>DOB:</strong> {formatDisplayDate(patient.dob)}</span>
-              <span><strong>Age:</strong> {patient.age || '-'}</span>
+              <span><strong>Age:</strong> {calculateAgeFromDob(patient.dob) ?? patient.age ?? '-'}</span>
               <span><strong>Gender:</strong> {patient.gender || '-'}</span>
               <span><strong>Phone:</strong> {patient.phone || '-'}</span>
               <span><strong>Email:</strong> {patient.email || '-'}</span>

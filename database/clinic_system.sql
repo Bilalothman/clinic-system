@@ -59,7 +59,6 @@ CREATE TABLE patient (
   address VARCHAR(255) NULL,
   dob DATE NULL,
   gender ENUM('male', 'female', 'other') NULL,
-  age INT UNSIGNED NULL,
   assigned_doctor_id BIGINT UNSIGNED NULL,
   last_visit DATE NULL,
   notes TEXT NULL,
@@ -289,14 +288,14 @@ INSERT INTO doctor (
 
 INSERT INTO patient (
   patient_id, full_name, email, password, phone, address, dob, gender,
-  age, assigned_doctor_id, last_visit, notes, status
+  assigned_doctor_id, last_visit, notes, status
 ) VALUES
-  (201, 'John Doe', 'patient@patient.com', 'patient123', '+1-555-200-0201', 'Demo Patient Address', NULL, NULL, NULL, 101, '2026-04-06', 'Demo patient account.', 'active'),
-  (202, 'Alice Johnson', 'alice.johnson@patient.com', 'patient123', '+1-234-567-8901', NULL, '1997-04-11', NULL, 28, 101, '2024-01-15', 'Follow-up for blood pressure review.', 'active'),
-  (203, 'Bob Wilson', 'bob.wilson@patient.com', 'patient123', '+1-234-567-8902', NULL, '1980-09-24', NULL, 45, 102, '2024-01-10', 'Monitoring diabetes medication response.', 'active'),
-  (204, 'Carol Davis', 'carol.davis@patient.com', 'patient123', '+1-234-567-8903', NULL, '1993-02-07', NULL, 32, 103, '2024-01-12', 'Migraine care plan updated this week.', 'active'),
-  (205, 'Daniel Green', 'daniel.green@patient.com', 'patient123', '+1-234-567-8910', NULL, '1986-06-30', NULL, 39, 102, '2024-01-09', 'Awaiting lab results before next consultation.', 'active'),
-  (206, 'Emma White', 'emma.white@patient.com', 'patient123', '+1-234-567-8911', NULL, '1974-01-15', NULL, 51, 101, '2024-01-05', 'Recovering well after cardiology review.', 'active');
+  (201, 'John Doe', 'patient@patient.com', 'patient123', '+1-555-200-0201', 'Demo Patient Address', NULL, NULL, 101, '2026-04-06', 'Demo patient account.', 'active'),
+  (202, 'Alice Johnson', 'alice.johnson@patient.com', 'patient123', '+1-234-567-8901', NULL, '1997-04-11', NULL, 101, '2024-01-15', 'Follow-up for blood pressure review.', 'active'),
+  (203, 'Bob Wilson', 'bob.wilson@patient.com', 'patient123', '+1-234-567-8902', NULL, '1980-09-24', NULL, 102, '2024-01-10', 'Monitoring diabetes medication response.', 'active'),
+  (204, 'Carol Davis', 'carol.davis@patient.com', 'patient123', '+1-234-567-8903', NULL, '1993-02-07', NULL, 103, '2024-01-12', 'Migraine care plan updated this week.', 'active'),
+  (205, 'Daniel Green', 'daniel.green@patient.com', 'patient123', '+1-234-567-8910', NULL, '1986-06-30', NULL, 102, '2024-01-09', 'Awaiting lab results before next consultation.', 'active'),
+  (206, 'Emma White', 'emma.white@patient.com', 'patient123', '+1-234-567-8911', NULL, '1974-01-15', NULL, 101, '2024-01-05', 'Recovering well after cardiology review.', 'active');
 
 INSERT INTO appointment (
   appointment_id, patient_id, doctor_id, specialty, appointment_date, appointment_time,

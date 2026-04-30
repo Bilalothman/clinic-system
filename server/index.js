@@ -109,6 +109,24 @@ const toDateOnlyString = (value) => {
   return String(value).slice(0, 10);
 };
 
+const calculateAgeFromDob = (value) => {
+  const dob = toDateValue(value);
+  const today = toDateValue(new Date());
+
+  if (!dob || !today || dob > today) {
+    return null;
+  }
+
+  let age = today.getFullYear() - dob.getFullYear();
+  const birthdayThisYear = new Date(today.getFullYear(), dob.getMonth(), dob.getDate());
+
+  if (today < birthdayThisYear) {
+    age -= 1;
+  }
+
+  return age;
+};
+
 const isBeforeToday = (value) => {
   const dateValue = toDateValue(value);
   const today = toDateValue(new Date());
@@ -198,7 +216,7 @@ const formatPatient = (row) => ({
   address: row.address,
   dob: toDateOnlyString(row.dob),
   gender: row.gender,
-  age: row.age,
+  age: calculateAgeFromDob(row.dob),
   assignedDoctorId: row.assigned_doctor_id,
   doctor: row.doctor_name || '',
   lastVisit: row.last_visit || 'N/A',
@@ -223,9 +241,15 @@ const formatAppointment = (row) => ({
   duration: `${row.duration_minutes}min`,
   reason: row.reason,
   doctorFee: row.doctor_fee !== null ? Number(row.doctor_fee) : null,
+  paymentMethod: row.payment_method || '',
   preFeeImage: row.pre_fee_image || '',
   preFeeImageName: row.pre_fee_image_name || '',
 });
+
+const normalizePaymentMethod = (value) => {
+  const method = String(value || '').trim().toLowerCase();
+  return ['cash', 'whish'].includes(method) ? method : '';
+};
 
 const isMissingProfileValue = (value) => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -613,6 +637,8 @@ const buildProfile = async (role, userId) => {
       address: patient.address,
       dob: toDateOnlyString(patient.dob),
       gender: patient.gender,
+      age: calculateAgeFromDob(patient.dob),
+      status: patient.status,
       avatar: patient.profile_image || '',
       avatarName: patient.profile_image_name || '',
     };
@@ -1836,7 +1862,6 @@ app.post('/api/patients', requireAuth, requireRoles('manager'), asyncHandler(asy
     address = null,
     dob = null,
     gender = null,
-    age = null,
     assignedDoctorId = null,
     notes = '',
   } = req.body || {};
@@ -1856,9 +1881,9 @@ app.post('/api/patients', requireAuth, requireRoles('manager'), asyncHandler(asy
 
   const insert = await query(
     `INSERT INTO patient
-      (full_name, email, password, phone, address, dob, gender, age, assigned_doctor_id, notes, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
-    [name, String(email).trim(), password, phone, address, dob, gender, age, assignedDoctorId, notes]
+      (full_name, email, password, phone, address, dob, gender, assigned_doctor_id, notes, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
+    [name, String(email).trim(), password, phone, address, dob, gender, assignedDoctorId, notes]
   );
 
   const rows = await query(
@@ -1889,17 +1914,17 @@ app.put('/api/patients/:id', requireAuth, requireRoles('manager'), asyncHandler(
     address,
     dob,
     gender,
-    age,
     assignedDoctorId,
     lastVisit,
     notes,
     status,
   } = req.body || {};
+  const nextStatus = ['active', 'inactive'].includes(status) ? status : existing.status;
 
   await query(
     `UPDATE patient
      SET full_name = ?, email = ?, password = ?, phone = ?, address = ?, dob = ?, gender = ?,
-         age = ?, assigned_doctor_id = ?, last_visit = ?, notes = ?, status = ?
+         assigned_doctor_id = ?, last_visit = ?, notes = ?, status = ?
      WHERE patient_id = ?`,
     [
       name ?? existing.full_name,
@@ -1909,11 +1934,10 @@ app.put('/api/patients/:id', requireAuth, requireRoles('manager'), asyncHandler(
       address ?? existing.address,
       dob ?? existing.dob,
       gender ?? existing.gender,
-      age ?? existing.age,
       assignedDoctorId ?? existing.assigned_doctor_id,
       lastVisit ?? existing.last_visit,
       notes ?? existing.notes,
-      status ?? existing.status,
+      nextStatus,
       patientId,
     ]
   );
@@ -1956,10 +1980,12 @@ app.get('/api/appointments', requireAuth, asyncHandler(async (req, res) => {
     `SELECT
       a.*, DATE_FORMAT(a.appointment_date, '%Y-%m-%d') AS appointment_date,
       p.full_name AS patient_name,
-      d.full_name AS doctor_name
+      d.full_name AS doctor_name,
+      b.payment_method
      FROM appointment a
      INNER JOIN patient p ON p.patient_id = a.patient_id
      INNER JOIN doctor d ON d.doctor_id = a.doctor_id
+     LEFT JOIN bills b ON b.appointment_id = a.appointment_id
      ${where}
      ORDER BY a.appointment_date DESC, a.appointment_time DESC, a.appointment_id DESC`,
     params
@@ -1981,17 +2007,33 @@ app.post('/api/appointments', requireAuth, asyncHandler(async (req, res) => {
     reason,
     status = 'pending',
     doctorFee,
+    paymentMethod,
     preFeeImage = null,
     preFeeImageName = null,
   } = req.body || {};
 
-  if (!specialty || !date || !time || !reason) {
+  const normalizedPaymentMethod = normalizePaymentMethod(paymentMethod);
+
+  if (!specialty || !date || !time || !reason || (req.user.role === 'patient' && !normalizedPaymentMethod)) {
     res.status(400).json({ message: 'Missing required appointment fields.' });
+    return;
+  }
+
+  if (req.user.role === 'patient' && normalizedPaymentMethod === 'whish' && !preFeeImage) {
+    res.status(400).json({ message: 'Whish payment requires a pre-fee image.' });
     return;
   }
 
   if (req.user.role === 'patient') {
     const currentPatient = await patientById(req.user.userId);
+
+    if (!currentPatient || currentPatient.status !== 'active') {
+      res.status(403).json({
+        message: 'Your account is blocked by the clinic manager, so you cannot book appointments. Please contact us at 03216269 to remove the block.',
+      });
+      return;
+    }
+
     const missingProfileFields = getMissingPatientProfileFields(currentPatient);
 
     if (missingProfileFields.length) {
@@ -2065,14 +2107,15 @@ app.post('/api/appointments', requireAuth, asyncHandler(async (req, res) => {
 
   await query(
     `INSERT INTO bills
-      (appointment_id, patient_id, doctor_id, amount, bill_status, issued_date, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      (appointment_id, patient_id, doctor_id, amount, bill_status, payment_method, issued_date, notes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       insert.insertId,
       ensuredPatient.patient_id,
       resolvedDoctorId,
       amount,
       status === 'cancelled' ? 'cancelled' : 'unpaid',
+      normalizedPaymentMethod || null,
       date,
       'Auto-generated from appointment booking.',
     ]
@@ -2082,10 +2125,12 @@ app.post('/api/appointments', requireAuth, asyncHandler(async (req, res) => {
     `SELECT
       a.*, DATE_FORMAT(a.appointment_date, '%Y-%m-%d') AS appointment_date,
       p.full_name AS patient_name,
-      d.full_name AS doctor_name
+      d.full_name AS doctor_name,
+      b.payment_method
      FROM appointment a
      INNER JOIN patient p ON p.patient_id = a.patient_id
      INNER JOIN doctor d ON d.doctor_id = a.doctor_id
+     LEFT JOIN bills b ON b.appointment_id = a.appointment_id
      WHERE a.appointment_id = ?`,
     [insert.insertId]
   );
@@ -2198,10 +2243,12 @@ app.patch('/api/appointments/:id', requireAuth, asyncHandler(async (req, res) =>
     `SELECT
       a.*, DATE_FORMAT(a.appointment_date, '%Y-%m-%d') AS appointment_date,
       p.full_name AS patient_name,
-      d.full_name AS doctor_name
+      d.full_name AS doctor_name,
+      b.payment_method
      FROM appointment a
      INNER JOIN patient p ON p.patient_id = a.patient_id
      INNER JOIN doctor d ON d.doctor_id = a.doctor_id
+     LEFT JOIN bills b ON b.appointment_id = a.appointment_id
      WHERE a.appointment_id = ?`,
     [appointmentId]
   );

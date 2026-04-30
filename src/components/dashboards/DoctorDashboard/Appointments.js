@@ -437,6 +437,7 @@ const Appointments = ({ showPendingOnly = false }) => {
                     <span><strong>Time:</strong> {appointment.time}</span>
                     <span><strong>Duration:</strong> {appointment.duration}</span>
                     <span><strong>Status:</strong> {appointment.status}</span>
+                    <span><strong>Payment:</strong> {appointment.paymentMethod === 'whish' ? 'Whish' : appointment.paymentMethod === 'cash' ? 'Cash' : '-'}</span>
                   </div>
                   <p className="appointment-reason"><strong>Reason:</strong> {appointment.reason}</p>
 
