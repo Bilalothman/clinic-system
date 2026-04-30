@@ -1,20 +1,25 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
+require('dotenv').config({ path: path.resolve(__dirname, '.env'), override: true });
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 const OpenAI = require('openai');
 const { OAuth2Client } = require('google-auth-library');
 const { query } = require('./db');
 const { requireAuth, requireRoles } = require('./middleware/auth');
 
 const app = express();
-const PORT = Number(process.env.PORT || 3001);
+const PORT = Number(process.env.API_PORT || process.env.SERVER_PORT || 3001);
 const startedAt = new Date().toISOString();
 const medicalDisclaimer = 'This is not a medical diagnosis. For severe or worsening symptoms, seek urgent medical care.';
 const googleClientId = process.env.GOOGLE_CLIENT_ID || process.env.REACT_APP_GOOGLE_CLIENT_ID || '';
 const googleClient = new OAuth2Client(googleClientId);
 let startupDbStatus = { ok: false, checkedAt: null, error: null };
+const pendingGooglePatientVerifications = new Map();
 const defaultDoctorTimeSlots = [
   '08:00 AM',
   '08:15 AM',
@@ -249,6 +254,54 @@ const signToken = (role, userId) => jwt.sign(
   process.env.JWT_SECRET || 'clinic-dev-secret',
   { expiresIn: '7d' }
 );
+
+const getVerificationCodeHash = (code) => crypto
+  .createHash('sha256')
+  .update(String(code || ''))
+  .digest('hex');
+
+const createVerificationCode = () => String(crypto.randomInt(100000, 1000000));
+
+const createVerificationToken = () => crypto.randomBytes(32).toString('hex');
+
+const getEmailTransport = () => {
+  const host = process.env.SMTP_HOST;
+  const port = Number(process.env.SMTP_PORT || 587);
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  if (!host || !user || !pass) {
+    const error = new Error('Email verification is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, and SMTP_FROM on the server.');
+    error.statusCode = 503;
+    throw error;
+  }
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+};
+
+const sendGooglePatientVerificationCode = async ({ email, name, code }) => {
+  const transporter = getEmailTransport();
+  const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+
+  await transporter.sendMail({
+    from,
+    to: email,
+    subject: 'Your Clinic account verification code',
+    text: [
+      `Hello ${name || 'Patient'},`,
+      '',
+      `Your Clinic account verification code is: ${code}`,
+      '',
+      'This code expires in 10 minutes.',
+      'If you did not request this account, you can ignore this email.',
+    ].join('\n'),
+  });
+};
 
 const verifyGoogleCredential = async (credential) => {
   if (!googleClientId) {
@@ -579,9 +632,15 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
 
 app.post('/api/auth/google', asyncHandler(async (req, res) => {
   const googleUser = await verifyGoogleCredential(req.body?.credential);
+  const mode = String(req.body?.mode || '').trim().toLowerCase();
 
   const doctorRows = await query('SELECT * FROM doctor WHERE LOWER(email) = LOWER(?) LIMIT 1', [googleUser.email]);
   if (doctorRows[0]) {
+    if (mode === 'register') {
+      res.status(409).json({ message: 'This Google email already belongs to a doctor or manager account. Please sign in instead.' });
+      return;
+    }
+
     const doctor = doctorRows[0];
     const role = doctor.role === 'manager' ? 'manager' : 'doctor';
     const token = signToken(role, doctor.doctor_id);
@@ -594,24 +653,40 @@ app.post('/api/auth/google', asyncHandler(async (req, res) => {
   const patientRows = await query('SELECT * FROM patient WHERE LOWER(email) = LOWER(?) LIMIT 1', [googleUser.email]);
   let patient = patientRows[0];
 
-  if (!patient) {
-    const generatedPassword = await bcrypt.hash(`google:${googleUser.googleId}:${Date.now()}`, 10);
-    const insert = await query(
-      `INSERT INTO patient
-        (full_name, email, password, phone, address, status, profile_image, profile_image_name)
-       VALUES (?, ?, ?, ?, ?, 'active', ?, ?)`,
-      [
-        googleUser.name || googleUser.email,
-        googleUser.email,
-        generatedPassword,
-        '-',
-        'Registered with Google',
-        googleUser.picture || null,
-        googleUser.picture ? 'Google profile photo' : null,
-      ]
-    );
+  if (mode === 'register' && patient) {
+    res.status(409).json({ message: 'This Google email is already registered. Please sign in instead.' });
+    return;
+  }
 
-    patient = await patientById(insert.insertId);
+  if (mode === 'register' && !patient) {
+    const code = createVerificationCode();
+    const verificationToken = createVerificationToken();
+
+    await sendGooglePatientVerificationCode({
+      email: googleUser.email,
+      name: googleUser.name,
+      code,
+    });
+
+    pendingGooglePatientVerifications.set(verificationToken, {
+      googleUser,
+      codeHash: getVerificationCodeHash(code),
+      expiresAt: Date.now() + 10 * 60 * 1000,
+      attempts: 0,
+    });
+
+    res.status(202).json({
+      requiresVerification: true,
+      verificationToken,
+      email: googleUser.email,
+      message: 'Verification code sent to your Google email.',
+    });
+    return;
+  }
+
+  if (!patient) {
+    res.status(404).json({ message: 'No account found for this Google email. Please register first.' });
+    return;
   }
 
   const token = signToken('patient', patient.patient_id);
@@ -621,6 +696,78 @@ app.post('/api/auth/google', asyncHandler(async (req, res) => {
     token,
     role: 'patient',
     userId: String(patient.patient_id),
+    profile,
+  });
+}));
+
+app.post('/api/auth/google/verify', asyncHandler(async (req, res) => {
+  const verificationToken = String(req.body?.verificationToken || '').trim();
+  const code = String(req.body?.code || '').trim();
+
+  if (!verificationToken || !code) {
+    res.status(400).json({ message: 'Verification token and code are required.' });
+    return;
+  }
+
+  const pending = pendingGooglePatientVerifications.get(verificationToken);
+  if (!pending) {
+    res.status(400).json({ message: 'Verification session expired. Please try Google registration again.' });
+    return;
+  }
+
+  if (pending.expiresAt < Date.now()) {
+    pendingGooglePatientVerifications.delete(verificationToken);
+    res.status(400).json({ message: 'Verification code expired. Please try Google registration again.' });
+    return;
+  }
+
+  pending.attempts += 1;
+  if (pending.attempts > 5) {
+    pendingGooglePatientVerifications.delete(verificationToken);
+    res.status(429).json({ message: 'Too many verification attempts. Please try Google registration again.' });
+    return;
+  }
+
+  if (pending.codeHash !== getVerificationCodeHash(code)) {
+    res.status(400).json({ message: 'Invalid verification code.' });
+    return;
+  }
+
+  const googleUser = pending.googleUser;
+  const existingDoctor = await query('SELECT doctor_id FROM doctor WHERE LOWER(email) = LOWER(?) LIMIT 1', [googleUser.email]);
+  const existingPatient = await query('SELECT * FROM patient WHERE LOWER(email) = LOWER(?) LIMIT 1', [googleUser.email]);
+
+  if (existingDoctor[0] || existingPatient[0]) {
+    pendingGooglePatientVerifications.delete(verificationToken);
+    res.status(409).json({ message: 'This Google email is already registered. Please sign in instead.' });
+    return;
+  }
+
+  const generatedPassword = await bcrypt.hash(`google:${googleUser.googleId}:${Date.now()}`, 10);
+  const insert = await query(
+    `INSERT INTO patient
+      (full_name, email, password, phone, address, status, profile_image, profile_image_name)
+     VALUES (?, ?, ?, ?, ?, 'active', ?, ?)`,
+    [
+      googleUser.name || googleUser.email,
+      googleUser.email,
+      generatedPassword,
+      '-',
+      'Registered with Google',
+      googleUser.picture || null,
+      googleUser.picture ? 'Google profile photo' : null,
+    ]
+  );
+
+  pendingGooglePatientVerifications.delete(verificationToken);
+
+  const token = signToken('patient', insert.insertId);
+  const profile = await buildProfile('patient', insert.insertId);
+
+  res.status(201).json({
+    token,
+    role: 'patient',
+    userId: String(insert.insertId),
     profile,
   });
 }));

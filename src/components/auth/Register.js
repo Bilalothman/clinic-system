@@ -25,6 +25,8 @@ const Register = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [googleVerification, setGoogleVerification] = useState(null);
+  const [verificationCode, setVerificationCode] = useState('');
   const navigate = useNavigate();
   const { login } = useAuth();
   const { apiCall } = useApi();
@@ -72,11 +74,55 @@ const Register = () => {
   const handleGoogleCredential = useCallback(async (credential) => {
     setLoading(true);
     setError('');
+    setGoogleVerification(null);
+    setVerificationCode('');
 
     try {
       const result = await apiCall('/auth/google', {
         method: 'POST',
-        body: JSON.stringify({ credential }),
+        body: JSON.stringify({ credential, mode: 'register' }),
+      });
+
+      if (result.requiresVerification) {
+        setGoogleVerification({
+          token: result.verificationToken,
+          email: result.email,
+          message: result.message || 'Verification code sent to your Google email.',
+        });
+        return;
+      }
+
+      login(result.role, result.userId, result.token, result.profile || {});
+      redirectByRole(result.role);
+    } catch (apiError) {
+      setError(
+        apiError.message.includes('Email verification is not configured')
+          ? 'Email verification is not configured yet. Add SMTP settings in .env, restart the app, and try again.'
+          : apiError.message
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [apiCall, login, redirectByRole]);
+
+  const handleGoogleVerificationSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!googleVerification?.token) {
+      setError('Please start Google registration again.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const result = await apiCall('/auth/google/verify', {
+        method: 'POST',
+        body: JSON.stringify({
+          verificationToken: googleVerification.token,
+          code: verificationCode,
+        }),
       });
 
       login(result.role, result.userId, result.token, result.profile || {});
@@ -86,7 +132,7 @@ const Register = () => {
     } finally {
       setLoading(false);
     }
-  }, [apiCall, login, redirectByRole]);
+  };
 
   return (
     <div className="auth-container">
@@ -198,6 +244,31 @@ const Register = () => {
 
         <div className="auth-divider"><span>or</span></div>
         <GoogleSignInButton onCredential={handleGoogleCredential} disabled={loading} />
+
+        {googleVerification && (
+          <form className="google-verification-panel" onSubmit={handleGoogleVerificationSubmit}>
+            <div>
+              <h2>Verify your Google email</h2>
+              <p>{googleVerification.message} Enter the 6-digit code sent to {googleVerification.email}.</p>
+            </div>
+            <div className="form-group">
+              <label>Verification Code</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]{6}"
+                maxLength="6"
+                value={verificationCode}
+                onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="123456"
+                required
+              />
+            </div>
+            <button type="submit" className="auth-btn" disabled={loading || verificationCode.length !== 6}>
+              {loading ? <LoadingSpinner /> : 'Verify And Create Account'}
+            </button>
+          </form>
+        )}
 
         <div className="auth-footer">
           <p>Already have account? <a href="/login">Sign In</a></p>
