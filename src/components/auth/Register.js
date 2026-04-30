@@ -144,108 +144,110 @@ const Register = () => {
 
         {error && <div className="error-message">{error}</div>}
 
-        <form onSubmit={handleSubmit} className="auth-form" autoComplete="off">
-          <div className="form-row">
-            <div className="form-group">
-              <label>Full Name</label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                autoComplete="off"
-                required
-                placeholder="John Doe"
-              />
-            </div>
-            <div className="form-group">
-              <label>Email</label>
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                autoComplete="off"
-                required
-                placeholder="john@example.com"
-              />
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label>Phone</label>
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                autoComplete="off"
-                required
-                placeholder="+1-234-567-8900"
-              />
-            </div>
-            <div className="form-group">
-              <label>Date of Birth</label>
-              <input
-                type="date"
-                value={formData.dob}
-                onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
-                autoComplete="off"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label>Address</label>
-            <textarea
-              value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              rows="3"
-              placeholder="123 Main St, City, State 12345"
-              autoComplete="off"
-              required
-            />
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label>Gender</label>
-              <select
-                value={formData.gender}
-                onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                autoComplete="off"
-                required
-              >
-                <option value="">Select Gender</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Password</label>
-              <input
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                autoComplete="new-password"
-                required
-                placeholder="Create a strong password"
-              />
-              <div className="password-hint">
-                Must include: 1 capital letter, 1 number, and 1 symbol.
+        {!googleVerification ? (
+          <>
+            <form onSubmit={handleSubmit} className="auth-form" autoComplete="off">
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Full Name</label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    autoComplete="off"
+                    required
+                    placeholder="John Doe"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Email</label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    autoComplete="off"
+                    required
+                    placeholder="john@example.com"
+                  />
+                </div>
               </div>
-            </div>
-          </div>
 
-          <button type="submit" className="auth-btn" disabled={loading}>
-            {loading ? <LoadingSpinner /> : 'Create Patient Account'}
-          </button>
-        </form>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Phone</label>
+                  <input
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    autoComplete="off"
+                    required
+                    placeholder="+1-234-567-8900"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Date of Birth</label>
+                  <input
+                    type="date"
+                    value={formData.dob}
+                    onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
+                    autoComplete="off"
+                    required
+                  />
+                </div>
+              </div>
 
-        <div className="auth-divider"><span>or</span></div>
-        <GoogleSignInButton onCredential={handleGoogleCredential} disabled={loading} />
+              <div className="form-group">
+                <label>Address</label>
+                <textarea
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  rows="3"
+                  placeholder="123 Main St, City, State 12345"
+                  autoComplete="off"
+                  required
+                />
+              </div>
 
-        {googleVerification && (
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Gender</label>
+                  <select
+                    value={formData.gender}
+                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                    autoComplete="off"
+                    required
+                  >
+                    <option value="">Select Gender</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Password</label>
+                  <input
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    autoComplete="new-password"
+                    required
+                    placeholder="Create a strong password"
+                  />
+                  <div className="password-hint">
+                    Must include: 1 capital letter, 1 number, and 1 symbol.
+                  </div>
+                </div>
+              </div>
+
+              <button type="submit" className="auth-btn" disabled={loading}>
+                {loading ? <LoadingSpinner /> : 'Create Patient Account'}
+              </button>
+            </form>
+
+            <div className="auth-divider"><span>or</span></div>
+            <GoogleSignInButton onCredential={handleGoogleCredential} disabled={loading} />
+          </>
+        ) : (
           <form className="google-verification-panel" onSubmit={handleGoogleVerificationSubmit}>
             <div>
               <h2>Verify your Google email</h2>
@@ -270,9 +272,11 @@ const Register = () => {
           </form>
         )}
 
-        <div className="auth-footer">
-          <p>Already have account? <a href="/login">Sign In</a></p>
-        </div>
+        {!googleVerification && (
+          <div className="auth-footer">
+            <p>Already have account? <a href="/login">Sign In</a></p>
+          </div>
+        )}
       </div>
     </div>
   );
