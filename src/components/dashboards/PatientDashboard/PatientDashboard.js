@@ -52,6 +52,19 @@ const StarRating = ({ value, onChange, disabled = false, labelId }) => (
 
 const emptyReviewForm = { rating: '', comment: '' };
 
+// Store each patient's chatbot history separately so accounts do not share messages.
+const getSpecialtyChatStorageKey = (userId) => `patientSpecialtyChat:${userId || 'guest'}`;
+
+// If saved chat data is missing or broken, start with an empty conversation.
+const readStoredSpecialtyChat = (userId) => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(getSpecialtyChatStorageKey(userId)) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+};
+
 const getDoctorClinicStatus = (doctor) => {
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
   const availableDays = Array.isArray(doctor?.availableDays) ? doctor.availableDays : [];
@@ -76,9 +89,9 @@ const PatientOverview = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [specialtyMessage, setSpecialtyMessage] = useState('');
-  const [specialtyAdvice, setSpecialtyAdvice] = useState(null);
+  const [specialtyMessages, setSpecialtyMessages] = useState(() => readStoredSpecialtyChat(user?.userId));
   const [specialtyLoading, setSpecialtyLoading] = useState(false);
-  const [specialtyError, setSpecialtyError] = useState('');
+  const [isSpecialtyChatOpen, setIsSpecialtyChatOpen] = useState(false);
   const getInitials = (name) => String(name || 'D')
     .trim()
     .split(/\s+/)
@@ -137,6 +150,19 @@ const PatientOverview = () => {
 
     loadDoctorsAndReviews();
   }, [reloadDoctorsAndReviews]);
+
+  // Load the saved chat again when a different patient account is active.
+  useEffect(() => {
+    setSpecialtyMessages(readStoredSpecialtyChat(user?.userId));
+  }, [user?.userId]);
+
+  // Keep only the latest messages so localStorage stays small.
+  useEffect(() => {
+    localStorage.setItem(
+      getSpecialtyChatStorageKey(user?.userId),
+      JSON.stringify(specialtyMessages.slice(-30))
+    );
+  }, [specialtyMessages, user?.userId]);
 
   const handleReviewFieldChange = (doctorId, field, value) => {
     setReviewFormByDoctor((current) => ({
@@ -272,23 +298,57 @@ const PatientOverview = () => {
     const diagnosis = specialtyMessage.trim();
 
     if (!diagnosis) {
-      setSpecialtyError('Please describe your symptoms or diagnosis first.');
+      setSpecialtyMessages((current) => [
+        ...current,
+        {
+          id: `helper-empty-${Date.now()}`,
+          sender: 'helper',
+          text: 'Please describe your symptoms or diagnosis first.',
+          isError: true,
+        },
+      ]);
       return;
     }
 
     setSpecialtyLoading(true);
-    setSpecialtyError('');
-    setSpecialtyAdvice(null);
     setSpecialtyMessage('');
+
+    // Show the patient's question immediately before waiting for the API response.
+    setSpecialtyMessages((current) => [
+      ...current,
+      {
+        id: `patient-${Date.now()}`,
+        sender: 'patient',
+        text: diagnosis,
+      },
+    ]);
 
     try {
       const advice = await apiCall('/patient-specialty-advice', {
         method: 'POST',
         body: JSON.stringify({ diagnosis }),
       });
-      setSpecialtyAdvice(advice);
+
+      // Save the helper response in the same message list that is rendered in the chat body.
+      setSpecialtyMessages((current) => [
+        ...current,
+        {
+          id: `helper-${Date.now()}`,
+          sender: 'helper',
+          advice,
+        },
+      ]);
     } catch (adviceError) {
-      setSpecialtyError(adviceError.message || 'Could not get a specialty recommendation.');
+      const message = adviceError.message || 'Could not get a specialty recommendation.';
+      setSpecialtyMessages((current) => [
+        ...current,
+        {
+          id: `helper-error-${Date.now()}`,
+          sender: 'helper',
+          text: message,
+          isError: true,
+        },
+      ]);
     } finally {
       setSpecialtyLoading(false);
     }
@@ -301,55 +361,113 @@ const PatientOverview = () => {
         <p>Browse every available doctor in the clinic.</p>
       </div>
 
-      <section className="patient-specialty-chat" aria-labelledby="specialty-chat-title">
-        <div className="patient-specialty-chat-copy">
-          <h3 id="specialty-chat-title">Specialty Helper</h3>
-          <p>Describe your symptoms or diagnosis and get help choosing which specialty to book.</p>
-        </div>
-        <form className="patient-specialty-chat-form" onSubmit={handleSpecialtyAdviceSubmit}>
-          <label htmlFor="patient-specialty-message">Symptoms or diagnosis</label>
-          <textarea
-            id="patient-specialty-message"
-            rows="4"
-            maxLength="1200"
-            value={specialtyMessage}
-            onChange={(event) => setSpecialtyMessage(event.target.value)}
-            placeholder="Example: I have chest pain when walking and shortness of breath"
-          />
-          <div className="patient-specialty-chat-actions">
-            <span>{specialtyMessage.length}/1200</span>
-            <button type="submit" className="btn-primary" disabled={specialtyLoading}>
-              {specialtyLoading ? 'Checking...' : 'Ask ChatGPT'}
-            </button>
-          </div>
-        </form>
+      <section className={`patient-specialty-chat${isSpecialtyChatOpen ? ' is-open' : ''}`} aria-labelledby="specialty-chat-title">
+        {isSpecialtyChatOpen && (
+          <div className="patient-specialty-chat-panel" role="dialog" aria-modal="false" aria-labelledby="specialty-chat-title">
+            <div className="patient-specialty-chat-header">
+              <div className="patient-specialty-avatar" aria-hidden="true">+</div>
+              <div>
+                <h3 id="specialty-chat-title">Specialty Helper</h3>
+                <p>Usually replies instantly</p>
+              </div>
+              <button
+                type="button"
+                className="patient-specialty-close"
+                onClick={() => setIsSpecialtyChatOpen(false)}
+                aria-label="Close specialty helper chat"
+              >
+                x
+              </button>
+            </div>
 
-        {specialtyError && <div className="patient-specialty-error">{specialtyError}</div>}
-        {specialtyAdvice && (
-          <div className="patient-specialty-result">
-            {specialtyAdvice.isMedical === false ? (
-              <p className="patient-specialty-disclaimer">{specialtyAdvice.disclaimer}</p>
-            ) : (
-              <>
-                <div>
-                  <span className="patient-specialty-label">Recommended specialty</span>
-                  <strong>{specialtyAdvice.specialty}</strong>
-                </div>
-                <div>
-                  <span className="patient-specialty-label">Urgency</span>
-                  <strong>{specialtyAdvice.urgency}</strong>
-                </div>
-                <p>{specialtyAdvice.advice}</p>
-                {specialtyAdvice.appointmentReason && (
-                  <p className="patient-specialty-reason">Appointment reason: {specialtyAdvice.appointmentReason}</p>
-                )}
-                <NavLink to="/patient/appointments" className="patient-specialty-book-link">
-                  Book Appointment
-                </NavLink>
-              </>
-            )}
+            <div className="patient-specialty-chat-body">
+              <div className="patient-specialty-message bot">
+                Describe your symptoms or diagnosis and I can suggest which specialty to book.
+              </div>
+
+              {specialtyMessages.map((message) => {
+                if (message.sender === 'patient') {
+                  return (
+                    <div className="patient-specialty-message patient" key={message.id}>
+                      {message.text}
+                    </div>
+                  );
+                }
+
+                if (message.advice) {
+                  const { advice } = message;
+                  return (
+                    <div className="patient-specialty-result" key={message.id}>
+                      {advice.isMedical === false ? (
+                        <p className="patient-specialty-disclaimer">{advice.disclaimer}</p>
+                      ) : (
+                        <>
+                          <div>
+                            <span className="patient-specialty-label">Recommended specialty</span>
+                            <strong>{advice.specialty}</strong>
+                          </div>
+                          <div>
+                            <span className="patient-specialty-label">Urgency</span>
+                            <strong>{advice.urgency}</strong>
+                          </div>
+                          <p>{advice.advice}</p>
+                          {advice.appointmentReason && (
+                            <p className="patient-specialty-reason">Appointment reason: {advice.appointmentReason}</p>
+                          )}
+                          <NavLink to="/patient/appointments" className="patient-specialty-book-link">
+                            Book Appointment
+                          </NavLink>
+                        </>
+                      )}
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    className={`patient-specialty-message bot${message.isError ? ' is-error' : ''}`}
+                    key={message.id}
+                  >
+                    {message.text}
+                  </div>
+                );
+              })}
+            </div>
+
+            <form className="patient-specialty-chat-form" onSubmit={handleSpecialtyAdviceSubmit}>
+              <label htmlFor="patient-specialty-message">Symptoms or diagnosis</label>
+              <textarea
+                id="patient-specialty-message"
+                rows="3"
+                maxLength="1200"
+                value={specialtyMessage}
+                onChange={(event) => setSpecialtyMessage(event.target.value)}
+                placeholder="Type your symptoms..."
+              />
+              <div className="patient-specialty-chat-actions">
+                <span>{specialtyMessage.length}/1200</span>
+                <button type="submit" className="patient-specialty-send" disabled={specialtyLoading}>
+                  {specialtyLoading ? 'Checking...' : 'Send'}
+                </button>
+              </div>
+            </form>
           </div>
         )}
+
+        <button
+          type="button"
+          className="patient-specialty-launcher"
+          onClick={() => setIsSpecialtyChatOpen((current) => !current)}
+          aria-label={isSpecialtyChatOpen ? 'Close specialty helper chat' : 'Open specialty helper chat'}
+          aria-expanded={isSpecialtyChatOpen}
+        >
+          {isSpecialtyChatOpen ? 'x' : (
+            <span className="patient-specialty-launcher-icon" aria-hidden="true">
+              <span />
+              <span />
+            </span>
+          )}
+        </button>
       </section>
 
       {loading && <div className="patient-doctor-state">Loading doctors...</div>}

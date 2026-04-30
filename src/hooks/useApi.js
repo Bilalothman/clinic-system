@@ -27,6 +27,10 @@ export const useApi = () => {
 
       return data;
     } catch (error) {
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        throw new Error('Could not connect to the API server. Please start the backend on http://localhost:3001 and try again.');
+      }
+
       throw new Error(error.message);
     }
   }, []);

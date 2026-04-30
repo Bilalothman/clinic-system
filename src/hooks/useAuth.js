@@ -3,6 +3,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 const AuthContext = createContext(null);
 const ACCOUNT_PROFILE_KEY = 'accountProfile';
 
+// This must match the patient dashboard key so logout can remove the saved chat.
+const getSpecialtyChatStorageKey = (userId) => `patientSpecialtyChat:${userId || 'guest'}`;
+
 const getLocalIsoDate = () => {
   const now = new Date();
   const year = now.getFullYear();
@@ -80,6 +83,13 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const logout = useCallback(() => {
+    const currentUser = getStoredUser();
+
+    // Patient chat is private session data, so clear it before removing the user id.
+    if (currentUser?.role === 'patient') {
+      localStorage.removeItem(getSpecialtyChatStorageKey(currentUser.userId));
+    }
+
     localStorage.removeItem('token');
     localStorage.removeItem('role');
     localStorage.removeItem('userId');
