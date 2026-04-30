@@ -46,7 +46,7 @@ const ContactUs = () => {
   return (
     <div className="contact-us-card fade-in-up">
       <div className="contact-us-header">
-        <h3>Contact Us</h3>
+        <h3>Complaints</h3>
         <p>Send a complaint or concern directly to the clinic manager.</p>
       </div>
 
@@ -70,7 +70,7 @@ const ContactUs = () => {
         />
 
         <button type="submit" className="btn-primary contact-us-submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Sending...' : 'Send Message'}
+          {isSubmitting ? 'Sending...' : 'Submit Complaint'}
         </button>
       </form>
 

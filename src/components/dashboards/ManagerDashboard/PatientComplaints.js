@@ -54,7 +54,6 @@ const PatientComplaints = () => {
     <div className="manager-complaints-page fade-in-up">
       <div className="manager-complaints-header">
         <h3>Patient Complaints</h3>
-        <p>Messages sent by patients from the Contact Us page.</p>
       </div>
 
       {!loading && !error && complaints.length > 0 && (

@@ -643,7 +643,7 @@ const PatientDashboard = () => {
             Clinic Location
           </NavLink>
           <NavLink to="/patient/contact" className={({ isActive }) => `patient-side-link ${isActive ? 'active' : ''}`}>
-            Contact Us
+            Complaints
           </NavLink>
           <NavLink to="/patient/profile" className={({ isActive }) => `patient-side-link ${isActive ? 'active' : ''}`}>
             Profile
