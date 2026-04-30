@@ -291,7 +291,7 @@ const getEmailTransport = () => {
   const pass = process.env.SMTP_PASS;
 
   if (!host || !user || !pass) {
-    const error = new Error('Email verification is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, and SMTP_FROM on the server.');
+    const error = new Error('Email is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, and SMTP_FROM on the server.');
     error.statusCode = 503;
     throw error;
   }
@@ -320,6 +320,92 @@ const sendGooglePatientVerificationCode = async ({ email, name, code }) => {
       'This code expires in 10 minutes.',
       'If you did not request this account, you can ignore this email.',
     ].join('\n'),
+  });
+};
+
+const getAppointmentNotificationDetails = async (appointmentId) => {
+  const rows = await query(
+    `SELECT
+      a.appointment_id,
+      DATE_FORMAT(a.appointment_date, '%Y-%m-%d') AS appointment_date,
+      a.appointment_time,
+      a.specialty,
+      a.reason,
+      a.status,
+      p.full_name AS patient_name,
+      p.email AS patient_email,
+      d.full_name AS doctor_name,
+      d.email AS doctor_email
+     FROM appointment a
+     INNER JOIN patient p ON p.patient_id = a.patient_id
+     INNER JOIN doctor d ON d.doctor_id = a.doctor_id
+     WHERE a.appointment_id = ?
+     LIMIT 1`,
+    [Number(appointmentId)]
+  );
+
+  return rows[0] || null;
+};
+
+const sendAppointmentStatusEmail = async ({ appointment, status }) => {
+  if (!appointment?.patient_email) {
+    return;
+  }
+
+  const transporter = getEmailTransport();
+  const smtpFrom = process.env.SMTP_FROM || process.env.SMTP_USER;
+  const doctorName = appointment.doctor_name || 'Your doctor';
+  const doctorEmail = String(appointment.doctor_email || '').trim();
+  const from = `"${doctorName}" <${smtpFrom}>`;
+  const replyTo = doctorEmail || smtpFrom;
+  const isConfirmed = status === 'confirmed';
+  const actionText = isConfirmed ? 'confirmed' : 'rejected';
+  const subject = isConfirmed
+    ? `Your appointment with ${doctorName} is confirmed`
+    : `Your appointment with ${doctorName} was rejected`;
+
+  const info = await transporter.sendMail({
+    from,
+    replyTo,
+    to: appointment.patient_email,
+    subject,
+    text: [
+      `Hello ${appointment.patient_name || 'Patient'},`,
+      '',
+      `Your appointment has been ${actionText}.`,
+      '',
+      `Doctor: ${doctorName}`,
+      `Specialty: ${appointment.specialty || 'N/A'}`,
+      `Date: ${appointment.appointment_date}`,
+      `Time: ${appointment.appointment_time}`,
+      `Reason: ${appointment.reason || 'N/A'}`,
+      '',
+      isConfirmed
+        ? 'Please arrive on time for your appointment.'
+        : 'Please book another appointment if you still need care.',
+      '',
+      'Thank you.',
+    ].join('\n'),
+  });
+
+  console.log('Appointment email notification sent:', {
+    appointmentId: appointment.appointment_id,
+    status,
+    to: appointment.patient_email,
+    replyTo,
+    messageId: info.messageId,
+  });
+};
+
+const notifyAppointmentStatusChange = async ({ appointmentId, status }) => {
+  if (!['confirmed', 'cancelled'].includes(status)) {
+    return;
+  }
+
+  const appointment = await getAppointmentNotificationDetails(appointmentId);
+  await sendAppointmentStatusEmail({
+    appointment,
+    status,
   });
 };
 
@@ -2021,6 +2107,7 @@ app.patch('/api/appointments/:id', requireAuth, asyncHandler(async (req, res) =>
   const nextDate = updates.date ?? existing.appointment_date;
   const nextTime = updates.time ?? existing.appointment_time;
   const nextStatus = updates.status ?? existing.status;
+  const autoCancelledAppointmentIds = [];
 
   if (updates.date && isBeforeToday(updates.date)) {
     res.status(400).json({ message: 'Appointment date must be today or a future date.' });
@@ -2092,6 +2179,7 @@ app.patch('/api/appointments/:id', requireAuth, asyncHandler(async (req, res) =>
          WHERE appointment_id IN (${placeholders})`,
         pendingIds
       );
+      autoCancelledAppointmentIds.push(...pendingIds);
       await query(
         `UPDATE bills
          SET bill_status = 'cancelled'
@@ -2117,6 +2205,29 @@ app.patch('/api/appointments/:id', requireAuth, asyncHandler(async (req, res) =>
      WHERE a.appointment_id = ?`,
     [appointmentId]
   );
+
+  const statusChanged = updates.status && updates.status !== existing.status;
+  const notificationJobs = [];
+
+  if (statusChanged && ['confirmed', 'cancelled'].includes(nextStatus)) {
+    notificationJobs.push(notifyAppointmentStatusChange({ appointmentId, status: nextStatus }));
+  }
+
+  autoCancelledAppointmentIds.forEach((cancelledAppointmentId) => {
+    notificationJobs.push(notifyAppointmentStatusChange({
+      appointmentId: cancelledAppointmentId,
+      status: 'cancelled',
+    }));
+  });
+
+  if (notificationJobs.length) {
+    const notificationResults = await Promise.allSettled(notificationJobs);
+    notificationResults.forEach((result) => {
+      if (result.status === 'rejected') {
+        console.error('Appointment email notification failed:', result.reason);
+      }
+    });
+  }
 
   res.json(formatAppointment(rows[0]));
 }));
