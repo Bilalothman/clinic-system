@@ -71,6 +71,53 @@
   font-weight: 600;
 }
 
+.patient-appointments-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+
+.patient-appointments-filter-field {
+  display: flex;
+  flex: 1 1 220px;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.patient-appointments-filter-field label {
+  color: #334155;
+  font-weight: 700;
+}
+
+.patient-appointments-filter-field input,
+.patient-appointments-filter-field select {
+  width: 100%;
+  padding: 0.85rem 0.95rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  font: inherit;
+}
+
+.patient-appointments-filter-field input:focus,
+.patient-appointments-filter-field select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.12);
+}
+
+.patient-appointments-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
 .appointments-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
@@ -87,7 +134,33 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 1rem;
   margin-bottom: 1rem;
+}
+
+.patient-appointment-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.implementation-badge {
+  border-radius: 999px;
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 0.35rem 0.65rem;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.implementation-badge.implemented {
+  background: #16a34a;
+}
+
+.implementation-badge.not-implemented {
+  background: #dc2626;
 }
 
 .appointment-date-time {

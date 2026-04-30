@@ -21,6 +21,38 @@ const getWeekdayFromDate = (dateString) => {
   return date.toLocaleDateString('en-US', { weekday: 'long' });
 };
 
+const getAppointmentDateTime = (dateString, timeString) => {
+  if (!dateString || !timeString) {
+    return null;
+  }
+
+  const dateParts = dateString.split('-').map(Number);
+  const timeMatch = String(timeString).trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+
+  if (dateParts.length !== 3 || dateParts.some((part) => !Number.isFinite(part)) || !timeMatch) {
+    return null;
+  }
+
+  let hours = Number(timeMatch[1]);
+  const minutes = Number(timeMatch[2]);
+  const meridiem = timeMatch[3]?.toUpperCase();
+
+  if (meridiem === 'PM' && hours < 12) {
+    hours += 12;
+  }
+
+  if (meridiem === 'AM' && hours === 12) {
+    hours = 0;
+  }
+
+  return new Date(dateParts[0], dateParts[1] - 1, dateParts[2], hours, minutes);
+};
+
+const isAppointmentImplemented = (appointment, currentDateTime) => {
+  const appointmentDateTime = getAppointmentDateTime(appointment.date, appointment.time);
+  return appointment.status === 'confirmed' && appointmentDateTime && appointmentDateTime <= currentDateTime;
+};
+
 const Appointments = ({ showPendingOnly = false }) => {
   const { user } = useAuth();
   const { apiCall } = useApi();
@@ -28,8 +60,10 @@ const Appointments = ({ showPendingOnly = false }) => {
   const [doctorProfile, setDoctorProfile] = useState(null);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [filterDate, setFilterDate] = useState('');
+  const [implementationFilter, setImplementationFilter] = useState('not-implemented');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [feedback, setFeedback] = useState('');
+  const [currentDateTime, setCurrentDateTime] = useState(() => new Date());
   const [newAppointmentForm, setNewAppointmentForm] = useState({
     patientId: '',
     patient: '',
@@ -61,17 +95,30 @@ const Appointments = ({ showPendingOnly = false }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.userId]);
 
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 60000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
   const filteredAppointments = useMemo(() => {
     const scopedAppointments = showPendingOnly
       ? appointments.filter((appointment) => appointment.status === 'pending')
       : appointments;
 
-    if (!filterDate) {
-      return scopedAppointments;
-    }
+    return scopedAppointments.filter((appointment) => {
+      const appointmentImplemented = isAppointmentImplemented(appointment, currentDateTime);
+      const matchesDate = !filterDate || appointment.date === filterDate || appointment.status === 'pending';
+      const matchesImplementation =
+        implementationFilter === 'all'
+        || (implementationFilter === 'implemented' && appointmentImplemented)
+        || (implementationFilter === 'not-implemented' && !appointmentImplemented);
 
-    return scopedAppointments.filter((appointment) => appointment.date === filterDate || appointment.status === 'pending');
-  }, [appointments, filterDate, showPendingOnly]);
+      return matchesDate && matchesImplementation;
+    });
+  }, [appointments, currentDateTime, filterDate, implementationFilter, showPendingOnly]);
 
   useEffect(() => {
     if (!filteredAppointments.length) {
@@ -274,18 +321,41 @@ const Appointments = ({ showPendingOnly = false }) => {
       )}
 
       <div className="appointments-filter">
-        <label htmlFor="appointments-date-filter">Filter by calendar date</label>
-        <input
-          id="appointments-date-filter"
-          type="date"
-          value={filterDate}
-          onChange={(e) => setFilterDate(e.target.value)}
-        />
-        {filterDate && (
-          <button type="button" className="btn-secondary" onClick={() => setFilterDate('')}>
-            Clear
-          </button>
-        )}
+        <div className="appointments-filter-field">
+          <label htmlFor="appointments-date-filter">Filter by calendar date</label>
+          <input
+            id="appointments-date-filter"
+            type="date"
+            value={filterDate}
+            onChange={(e) => setFilterDate(e.target.value)}
+          />
+        </div>
+
+        <div className="appointments-filter-field">
+          <label htmlFor="appointments-implementation-filter">Filter by implementation</label>
+          <select
+            id="appointments-implementation-filter"
+            value={implementationFilter}
+            onChange={(e) => setImplementationFilter(e.target.value)}
+          >
+            <option value="not-implemented">Not implemented</option>
+            <option value="implemented">Implemented</option>
+            <option value="all">All appointments</option>
+          </select>
+        </div>
+
+        <div className="appointments-filter-actions">
+          {filterDate && (
+            <button type="button" className="btn-secondary" onClick={() => setFilterDate('')}>
+              Clear Date
+            </button>
+          )}
+          {implementationFilter !== 'not-implemented' && (
+            <button type="button" className="btn-secondary" onClick={() => setImplementationFilter('not-implemented')}>
+              Show Active
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="action-feedback">
@@ -295,96 +365,106 @@ const Appointments = ({ showPendingOnly = false }) => {
       </div>
 
       <div className="appointments-list">
-        {filteredAppointments.map((appointment) => (
-          <div
-            key={appointment.id}
-            className={`appointment-card ${appointment.status} ${selectedAppointment?.id === appointment.id ? 'selected' : ''}`}
-            onClick={() => setSelectedAppointment(appointment)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                setSelectedAppointment(appointment);
-              }
-            }}
-          >
-            <div className="appointment-time">{appointment.time}</div>
-            <div className="appointment-details">
-              <h4>{appointment.patient}</h4>
-              <span className="duration">{appointment.duration}</span>
-              <div className="appointment-meta">
-                {appointment.date} ({getWeekdayFromDate(appointment.date)}) | {appointment.specialty}
+        {filteredAppointments.map((appointment) => {
+          const appointmentImplemented = isAppointmentImplemented(appointment, currentDateTime);
+
+          return (
+            <div
+              key={appointment.id}
+              className={`appointment-card ${appointment.status} ${selectedAppointment?.id === appointment.id ? 'selected' : ''}`}
+              onClick={() => setSelectedAppointment(appointment)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  setSelectedAppointment(appointment);
+                }
+              }}
+            >
+              <div className="appointment-time">{appointment.time}</div>
+              <div className="appointment-details">
+                <h4>{appointment.patient}</h4>
+                <span className="duration">{appointment.duration}</span>
+                <div className="appointment-meta">
+                  {appointment.date} ({getWeekdayFromDate(appointment.date)}) | {appointment.specialty}
+                </div>
               </div>
-            </div>
-            <div className="appointment-side">
-              <span className={`status-badge ${appointment.status}`}>{appointment.status}</span>
-              <div className="appointment-actions">
-                <button
-                  type="button"
-                  className="btn-primary btn-sm"
-                  disabled={appointment.status !== 'pending'}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    if (appointment.status === 'pending') {
-                      handleStatusChange(appointment.id, 'confirmed');
-                    }
-                  }}
-                >
-                  Accept
-                </button>
-                <button
-                  type="button"
-                  className="btn-secondary btn-sm"
-                  disabled={appointment.status !== 'pending'}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    if (appointment.status === 'pending') {
-                      handleStatusChange(appointment.id, 'cancelled');
-                    }
-                  }}
-                >
-                  Reject
-                </button>
+              <div className="appointment-side">
+                <div className="doctor-appointment-badges">
+                  <span className={`status-badge ${appointment.status}`}>{appointment.status}</span>
+                  <span className={`implementation-badge ${appointmentImplemented ? 'implemented' : 'not-implemented'}`}>
+                    {appointmentImplemented ? 'Implemented' : 'Not implemented'}
+                  </span>
+                </div>
+                <div className="appointment-actions">
+                  <button
+                    type="button"
+                    className="btn-primary btn-sm"
+                    disabled={appointment.status !== 'pending'}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (appointment.status === 'pending') {
+                        handleStatusChange(appointment.id, 'confirmed');
+                      }
+                    }}
+                  >
+                    Accept
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary btn-sm"
+                    disabled={appointment.status !== 'pending'}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (appointment.status === 'pending') {
+                        handleStatusChange(appointment.id, 'cancelled');
+                      }
+                    }}
+                  >
+                    Reject
+                  </button>
+                </div>
               </div>
+
+              {selectedAppointment?.id === appointment.id && (
+                <div className="appointment-inline-details">
+                  <h4>Appointment Details</h4>
+                  <div className="detail-grid">
+                    <span><strong>Patient:</strong> {appointment.patient}</span>
+                    <span><strong>Doctor:</strong> {appointment.doctor}</span>
+                    <span><strong>Date:</strong> {appointment.date}</span>
+                    <span><strong>Day:</strong> {getWeekdayFromDate(appointment.date)}</span>
+                    <span><strong>Time:</strong> {appointment.time}</span>
+                    <span><strong>Duration:</strong> {appointment.duration}</span>
+                    <span><strong>Status:</strong> {appointment.status}</span>
+                  </div>
+                  <p className="appointment-reason"><strong>Reason:</strong> {appointment.reason}</p>
+
+                  <div className="action-feedback">
+                    {appointment.status === 'pending'
+                      ? 'Use the Accept/Reject buttons on this appointment card.'
+                      : appointment.status === 'confirmed'
+                        ? 'Appointment accepted. Decision is locked.'
+                        : 'Appointment rejected. Decision is locked.'}
+                  </div>
+
+                  {appointment.preFeeImage && (
+                    <div className="pre-fee-preview">
+                      <h5>Pre-fee Image</h5>
+                      <img src={appointment.preFeeImage} alt="Pre-fee proof" />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {!filteredAppointments.length && (
-        <div className="empty-state">No appointments found for this date.</div>
+        <div className="empty-state">No appointments match these filters.</div>
       )}
 
-      {selectedAppointment && (
-        <div className="detail-panel">
-          <h4>Appointment Details</h4>
-          <div className="detail-grid">
-            <span><strong>Patient:</strong> {selectedAppointment.patient}</span>
-            <span><strong>Doctor:</strong> {selectedAppointment.doctor}</span>
-            <span><strong>Date:</strong> {selectedAppointment.date}</span>
-            <span><strong>Day:</strong> {getWeekdayFromDate(selectedAppointment.date)}</span>
-            <span><strong>Time:</strong> {selectedAppointment.time}</span>
-            <span><strong>Duration:</strong> {selectedAppointment.duration}</span>
-            <span><strong>Status:</strong> {selectedAppointment.status}</span>
-          </div>
-          <p className="appointment-reason"><strong>Reason:</strong> {selectedAppointment.reason}</p>
-
-          <div className="action-feedback">
-            {selectedAppointment.status === 'pending'
-              ? 'Use the Accept/Reject buttons on this appointment card.'
-              : selectedAppointment.status === 'confirmed'
-                ? 'Appointment accepted. Decision is locked.'
-                : 'Appointment rejected. Decision is locked.'}
-          </div>
-
-          {selectedAppointment.preFeeImage && (
-            <div className="pre-fee-preview">
-              <h5>Pre-fee Image</h5>
-              <img src={selectedAppointment.preFeeImage} alt="Pre-fee proof" />
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 };

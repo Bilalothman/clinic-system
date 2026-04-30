@@ -31,6 +31,38 @@ const getWeekdayFromDate = (dateString) => {
   return date.toLocaleDateString('en-US', { weekday: 'long' });
 };
 
+const getAppointmentDateTime = (dateString, timeString) => {
+  if (!dateString || !timeString) {
+    return null;
+  }
+
+  const dateParts = dateString.split('-').map(Number);
+  const timeMatch = String(timeString).trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+
+  if (dateParts.length !== 3 || dateParts.some((part) => !Number.isFinite(part)) || !timeMatch) {
+    return null;
+  }
+
+  let hours = Number(timeMatch[1]);
+  const minutes = Number(timeMatch[2]);
+  const meridiem = timeMatch[3]?.toUpperCase();
+
+  if (meridiem === 'PM' && hours < 12) {
+    hours += 12;
+  }
+
+  if (meridiem === 'AM' && hours === 12) {
+    hours = 0;
+  }
+
+  return new Date(dateParts[0], dateParts[1] - 1, dateParts[2], hours, minutes);
+};
+
+const isAppointmentImplemented = (appointment, currentDateTime) => {
+  const appointmentDateTime = getAppointmentDateTime(appointment.date, appointment.time);
+  return appointment.status === 'confirmed' && appointmentDateTime && appointmentDateTime <= currentDateTime;
+};
+
 const formatClinicTimeRange = (times) => {
   if (!Array.isArray(times) || !times.length) {
     return 'Not set';
@@ -87,6 +119,9 @@ const MyAppointments = () => {
   const [doctors, setDoctors] = useState([]);
   const [feedback, setFeedback] = useState('Fill out the form to book a new appointment, or reschedule an existing one.');
   const [bookingForm, setBookingForm] = useState(emptyForm);
+  const [dateFilter, setDateFilter] = useState('');
+  const [implementationFilter, setImplementationFilter] = useState('all');
+  const [currentDateTime, setCurrentDateTime] = useState(() => new Date());
 
   const patientId = user?.userId || '';
   const patientName = user?.profile?.name || (patientId ? `Patient ${patientId}` : 'Patient');
@@ -131,6 +166,14 @@ const MyAppointments = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientId]);
 
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 60000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
   const doctorOptions = useMemo(() => {
     return doctors.reduce((acc, doctor) => {
       acc[doctor.name] = doctor.specialty;
@@ -159,6 +202,19 @@ const MyAppointments = () => {
     () => allAppointments.filter((appointment) => String(appointment.patientId || '') === String(patientId)),
     [allAppointments, patientId]
   );
+
+  const filteredAppointments = useMemo(() => {
+    return appointments.filter((appointment) => {
+      const appointmentImplemented = isAppointmentImplemented(appointment, currentDateTime);
+      const matchesDate = !dateFilter || appointment.date === dateFilter;
+      const matchesImplementation =
+        implementationFilter === 'all'
+        || (implementationFilter === 'implemented' && appointmentImplemented)
+        || (implementationFilter === 'not-implemented' && !appointmentImplemented);
+
+      return matchesDate && matchesImplementation;
+    });
+  }, [appointments, currentDateTime, dateFilter, implementationFilter]);
 
   const selectedDoctor = useMemo(
     () => doctors.find((doctor) => doctor.name === bookingForm.doctor) || null,
@@ -457,23 +513,74 @@ const MyAppointments = () => {
         </button>
       </form>
 
-      <div className="appointments-grid">
-        {appointments.map((appointment) => (
-          <div key={appointment.id} className="appointment-card patient-appointment">
-            <div className="appointment-header">
-              <h4>{appointment.doctor}</h4>
-              <span className={`status-badge ${appointment.status}`}>{appointment.status}</span>
-            </div>
-            <div className="appointment-subtitle">{appointment.specialty}</div>
-            <div className="appointment-date-time">
-              <div>{appointment.date}</div>
-              <div>{appointment.time}</div>
-            </div>
-            <p className="appointment-reason">{appointment.reason}</p>
-            {appointment.preFeeImage && <div className="attachment-note">Pre-fee image attached</div>}
-          </div>
-        ))}
+      <div className="patient-appointments-filter">
+        <div className="patient-appointments-filter-field">
+          <label htmlFor="patient-appointments-date-filter">Filter appointments by date</label>
+          <input
+            id="patient-appointments-date-filter"
+            type="date"
+            value={dateFilter}
+            onChange={(event) => setDateFilter(event.target.value)}
+          />
+        </div>
+
+        <div className="patient-appointments-filter-field">
+          <label htmlFor="patient-appointments-implementation-filter">Filter by implementation</label>
+          <select
+            id="patient-appointments-implementation-filter"
+            value={implementationFilter}
+            onChange={(event) => setImplementationFilter(event.target.value)}
+          >
+            <option value="all">All appointments</option>
+            <option value="implemented">Implemented</option>
+            <option value="not-implemented">Not implemented</option>
+          </select>
+        </div>
+
+        <div className="patient-appointments-filter-actions">
+          {dateFilter && (
+            <button type="button" className="btn-secondary" onClick={() => setDateFilter('')}>
+              Clear Date
+            </button>
+          )}
+          {implementationFilter !== 'all' && (
+            <button type="button" className="btn-secondary" onClick={() => setImplementationFilter('all')}>
+              Clear Status
+            </button>
+          )}
+        </div>
       </div>
+
+      <div className="appointments-grid">
+        {filteredAppointments.map((appointment) => {
+          const appointmentImplemented = isAppointmentImplemented(appointment, currentDateTime);
+
+          return (
+            <div key={appointment.id} className="appointment-card patient-appointment">
+              <div className="appointment-header">
+                <h4>{appointment.doctor}</h4>
+                <div className="patient-appointment-badges">
+                  <span className={`status-badge ${appointment.status}`}>{appointment.status}</span>
+                  <span className={`implementation-badge ${appointmentImplemented ? 'implemented' : 'not-implemented'}`}>
+                    {appointmentImplemented ? 'Implemented' : 'Not implemented'}
+                  </span>
+                </div>
+              </div>
+              <div className="appointment-subtitle">{appointment.specialty}</div>
+              <div className="appointment-date-time">
+                <div>{appointment.date}</div>
+                <div>{appointment.time}</div>
+              </div>
+              <p className="appointment-reason">{appointment.reason}</p>
+              {appointment.preFeeImage && <div className="attachment-note">Pre-fee image attached</div>}
+            </div>
+          );
+        })}
+      </div>
+
+      {appointments.length > 0 && filteredAppointments.length === 0 && (
+        <div className="empty-state">No appointments match these filters.</div>
+      )}
     </div>
   );
 };

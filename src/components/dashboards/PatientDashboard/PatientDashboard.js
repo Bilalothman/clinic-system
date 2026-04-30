@@ -111,13 +111,24 @@ const PatientOverview = () => {
     return grouped;
   }, []);
 
-  const buildInitialForms = useCallback((doctorsList) => {
+  const getPatientRatingForDoctor = useCallback((doctorId, groupedReviews) => {
+    const patientRating = (groupedReviews[Number(doctorId)] || []).find(
+      (review) => String(review.patientId) === String(user?.userId) && review.rating !== null
+    );
+
+    return patientRating ? String(patientRating.rating) : '';
+  }, [user?.userId]);
+
+  const buildInitialForms = useCallback((doctorsList, groupedReviews) => {
     const forms = {};
     doctorsList.forEach((doctor) => {
-      forms[Number(doctor.id)] = { ...emptyReviewForm };
+      forms[Number(doctor.id)] = {
+        ...emptyReviewForm,
+        rating: getPatientRatingForDoctor(doctor.id, groupedReviews),
+      };
     });
     return forms;
-  }, []);
+  }, [getPatientRatingForDoctor]);
 
   const reloadDoctorsAndReviews = useCallback(async () => {
     const [doctorRows, reviewRows] = await Promise.all([
@@ -127,11 +138,20 @@ const PatientOverview = () => {
 
     const safeDoctors = Array.isArray(doctorRows) ? doctorRows : [];
     const groupedReviews = groupReviewsByDoctor(Array.isArray(reviewRows) ? reviewRows : []);
+    const initialForms = buildInitialForms(safeDoctors, groupedReviews);
     setDoctors(safeDoctors);
     setReviewsByDoctor(groupedReviews);
     setReviewFormByDoctor((current) => ({
-      ...buildInitialForms(safeDoctors),
-      ...current,
+      ...initialForms,
+      ...Object.fromEntries(
+        Object.entries(current).map(([doctorId, form]) => [
+          doctorId,
+          {
+            ...initialForms[doctorId],
+            comment: form.comment,
+          },
+        ])
+      ),
     }));
   }, [apiCall, buildInitialForms, groupReviewsByDoctor]);
 
@@ -211,10 +231,7 @@ const PatientOverview = () => {
 
   const handleRatingSelect = async (doctorId, value) => {
     handleReviewFieldChange(doctorId, 'rating', value);
-    const ok = await submitReview(doctorId, { rating: Number(value) });
-    if (ok) {
-      clearReviewField(doctorId, 'rating');
-    }
+    await submitReview(doctorId, { rating: Number(value) });
   };
 
   const handleSubmitComment = async (doctorId) => {
