@@ -44,7 +44,15 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 0.75rem;
   margin-bottom: 0.75rem;
+}
+
+.record-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 0 auto;
 }
 
 .diagnosis-tag {
@@ -54,6 +62,25 @@
   border-radius: 20px;
   font-size: 0.85rem;
   font-weight: 600;
+}
+
+.record-export {
+  border: 0;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.55rem 0.8rem;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.record-export:hover,
+.record-export:focus {
+  background: #1d4ed8;
+  transform: translateY(-1px);
 }
 
 .prescription {
@@ -167,6 +194,15 @@
 }
 
 @media (max-width: 540px) {
+  .record-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .record-header-actions {
+    flex-wrap: wrap;
+  }
+
   .lab-result-head {
     align-items: flex-start;
     flex-direction: column;
