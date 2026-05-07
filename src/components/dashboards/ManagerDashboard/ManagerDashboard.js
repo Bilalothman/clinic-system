@@ -165,12 +165,10 @@ const ManagerDashboard = () => {
                         </div>
                       );
                     })}
-                    {!chartMetrics[0].values.length && (
-                      <div className="manager-stats-state">No daily data available yet.</div>
-                    )}
-                  </div>
-
-                  <ManagerDoctorReviews />
+                  {!chartMetrics[0].values.length && (
+                    <div className="manager-stats-state">No daily data available yet.</div>
+                  )}
+                </div>
                 </>
               )}
             </>
@@ -179,6 +177,7 @@ const ManagerDashboard = () => {
           {currentSection === 'doctors' && <DoctorsManagement />}
           {currentSection === 'patients' && <PatientsList />}
           {currentSection === 'appointments' && <AppointmentsOverview />}
+          {currentSection === 'feedback' && <ManagerDoctorReviews />}
           {currentSection === 'complaints' && <PatientComplaints />}
           {currentSection === 'profile' && <MyProfile title="Manager Profile" />}
         </div>

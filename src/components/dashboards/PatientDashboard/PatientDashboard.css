@@ -169,6 +169,7 @@
   font-size: 0.92rem;
   line-height: 1.45;
   box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+  white-space: pre-line;
 }
 
 .patient-specialty-message.bot {
@@ -229,6 +230,53 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+}
+
+.patient-specialty-file-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.patient-specialty-file-row input[type='file'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.patient-specialty-file-button,
+.patient-specialty-file-row button {
+  border: 0;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #0f172a;
+  cursor: pointer;
+  flex: 0 0 auto;
+  font-size: 0.82rem;
+  font-weight: 800;
+  padding: 0.48rem 0.72rem;
+}
+
+.patient-specialty-chat-form .patient-specialty-file-button {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip: auto;
+}
+
+.patient-specialty-file-row span {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .patient-specialty-chat-actions span {

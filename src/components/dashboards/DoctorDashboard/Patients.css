@@ -119,18 +119,42 @@
   background: #e2e8f0;
 }
 
-.patient-report-status .patient-status-active {
-  color: #047857;
-  background: rgba(16, 185, 129, 0.14);
-}
-
-.patient-report-status .patient-status-blocked {
-  color: #b91c1c;
-  background: rgba(239, 68, 68, 0.14);
-}
-
 .btn-full {
   width: 100%;
+}
+
+.patient-report-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-end;
+  margin-left: auto;
+  min-width: 120px;
+  width: auto;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.6rem 0.85rem;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.patient-report-button.btn-danger {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.patient-report-button.btn-danger:hover,
+.patient-report-button.btn-danger:focus {
+  background: #b91c1c;
+  transform: translateY(-1px);
+}
+
+.patient-report-button:disabled {
+  cursor: not-allowed;
+  transform: none;
 }
 
 .patient-detail-panel {

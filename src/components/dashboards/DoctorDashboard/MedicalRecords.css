@@ -46,6 +46,13 @@
   border-left: 4px solid #667eea;
 }
 
+.record-item-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
 .record-item h5 {
   margin: 0 0 0.25rem 0;
   color: #1e293b;
@@ -148,6 +155,26 @@
   font-size: 0.9rem;
 }
 
+.result-export {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.6rem 0.85rem;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.result-export:hover,
+.result-export:focus {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+
 .lab-result-item p {
   margin: 0.3rem 0;
   color: #334155;
@@ -171,4 +198,12 @@
   border-radius: 10px;
   color: #64748b;
   background: rgba(255, 255, 255, 0.6);
+}
+
+@media (max-width: 540px) {
+  .lab-result-head,
+  .record-item-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }

@@ -4,6 +4,13 @@
   gap: 1rem;
 }
 
+.appointments-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+
 .create-appointment-form {
   margin-bottom: 1rem;
   padding: 1rem;
@@ -211,4 +218,17 @@
   max-width: 420px;
   border-radius: 12px;
   border: 1px solid #cbd5e1;
+}
+
+@media (max-width: 640px) {
+  .appointments-header-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .appointments-header-actions .btn-primary,
+  .appointments-header-actions .btn-secondary {
+    width: 100%;
+    justify-content: center;
+  }
 }

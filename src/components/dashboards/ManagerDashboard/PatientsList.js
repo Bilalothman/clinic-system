@@ -50,7 +50,6 @@ const PatientsList = () => {
       const [patientRows, doctorRows] = await Promise.all([apiCall('/patients'), apiCall('/doctors')]);
       setPatients(patientRows || []);
       setDoctors(doctorRows || []);
-      setSelectedPatient((patientRows || [])[0] || null);
     } catch (error) {
       setFeedback(error.message);
     }
@@ -79,22 +78,11 @@ const PatientsList = () => {
     }
 
     return scopedPatients.filter((patient) =>
-      [patient.name, patient.phone, patient.doctor, patient.status].some((value) =>
+      [patient.name, patient.phone, patient.doctor].some((value) =>
         String(value || '').toLowerCase().includes(query)
       )
     );
   }, [scopedPatients, searchTerm]);
-
-  useEffect(() => {
-    if (!visiblePatients.length) {
-      setSelectedPatient(null);
-      return;
-    }
-
-    if (!selectedPatient || !visiblePatients.some((patient) => patient.id === selectedPatient.id)) {
-      setSelectedPatient(visiblePatients[0]);
-    }
-  }, [visiblePatients, selectedPatient]);
 
   const handleToggleView = () => {
     setShowAll((current) => !current);
@@ -127,11 +115,11 @@ const PatientsList = () => {
     try {
       await apiCall(`/patients/${patientId}`, { method: 'DELETE' });
       const updatedPatients = patients.filter((patient) => patient.id !== patientId);
-      setPatients(updatedPatients);
-      setFeedback(`${patientToDelete?.name || 'Patient'} was removed from the list.`);
+        setPatients(updatedPatients);
+        setFeedback(`${patientToDelete?.name || 'Patient'} was removed from the list.`);
 
       if (selectedPatient?.id === patientId) {
-        setSelectedPatient(updatedPatients[0] || null);
+        setSelectedPatient(null);
       }
 
       if (editingPatientId === patientId) {
@@ -158,8 +146,8 @@ const PatientsList = () => {
       setSelectedPatient((current) => (current?.id === patient.id ? updated : current));
       setFeedback(
         nextStatus === 'inactive'
-          ? `${updated.name} was blocked and cannot book appointments.`
-          : `${updated.name} was released. Report count reset to 0.`
+          ? `${updated.name} cannot book appointments.`
+          : `${updated.name} can book appointments again. Report count reset to 0.`
       );
     } catch (error) {
       setFeedback(error.message);
@@ -316,40 +304,88 @@ const PatientsList = () => {
 
       <div className="patients-list">
         {visiblePatients.map((patient) => (
-          <div key={patient.id} className="patient-card">
-            <div className="patient-info">
-              <div className="patient-avatar">P</div>
-              <div>
-                <h4>{patient.name}</h4>
-                <p>
-                  {calculateAgeFromDob(patient.dob) ?? patient.age ?? '-'} years | {patient.phone} | {patient.status === 'active' ? 'Active' : 'Blocked'}
-                </p>
-                <div className="patient-report-meta">
-                  <span>{patient.reportCount || 0}/3 doctor reports</span>
-                  {patient.blockedByReports && <span className="patient-report-alert">Auto-blocked</span>}
+          <div key={patient.id} className="patient-card-shell">
+            <div
+              className="patient-card"
+              onClick={() => setSelectedPatient((current) => (current?.id === patient.id ? null : patient))}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  setSelectedPatient((current) => (current?.id === patient.id ? null : patient));
+                }
+              }}
+            >
+              <div className="patient-info">
+                <div className="patient-avatar">P</div>
+                <div>
+                  <h4>{patient.name}</h4>
+                  <p>
+                    {calculateAgeFromDob(patient.dob) ?? patient.age ?? '-'} years | {patient.phone}
+                  </p>
+                  <div className="patient-report-meta">
+                    <span>{patient.reportCount || 0}/3 doctor reports</span>
+                  </div>
+                </div>
+              </div>
+              <div className="patient-meta">
+                <div className="patient-actions">
+                  <button
+                    type="button"
+                    className="btn-secondary btn-sm"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSelectedPatient((current) => (current?.id === patient.id ? null : patient));
+                    }}
+                  >
+                    {selectedPatient?.id === patient.id ? 'Hide' : 'View'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary btn-sm"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleEditPatient(patient);
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className={patient.status === 'active' ? 'btn-danger btn-sm' : 'btn-secondary btn-sm'}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleTogglePatientStatus(patient);
+                    }}
+                  >
+                    {patient.status === 'active' ? 'Restrict' : 'Restore Access'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-danger btn-sm"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleDeletePatient(patient.id);
+                    }}
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
             </div>
-            <div className="patient-meta">
-              <div className="patient-actions">
-                <button type="button" className="btn-secondary btn-sm" onClick={() => setSelectedPatient(patient)}>
-                  View
-                </button>
-                <button type="button" className="btn-secondary btn-sm" onClick={() => handleEditPatient(patient)}>
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  className={patient.status === 'active' ? 'btn-danger btn-sm' : 'btn-secondary btn-sm'}
-                  onClick={() => handleTogglePatientStatus(patient)}
-                >
-                  {patient.status === 'active' ? 'Block' : 'Release Block'}
-                </button>
-                <button type="button" className="btn-danger btn-sm" onClick={() => handleDeletePatient(patient.id)}>
-                  Delete
-                </button>
+            {selectedPatient?.id === patient.id && (
+              <div className="patient-detail-scroll">
+                <div className="detail-grid">
+                  <span><strong>Doctor:</strong> {selectedPatient.doctor}</span>
+                  <span><strong>Date of birth:</strong> {selectedPatient.dob || '-'}</span>
+                  <span><strong>Phone:</strong> {selectedPatient.phone}</span>
+                  <span><strong>Age:</strong> {calculateAgeFromDob(selectedPatient.dob) ?? selectedPatient.age ?? '-'}</span>
+                  <span><strong>Doctor reports:</strong> {selectedPatient.reportCount || 0}/3</span>
+                </div>
+                <p className="patient-notes">{selectedPatient.notes}</p>
               </div>
-            </div>
+            )}
           </div>
         ))}
       </div>
@@ -358,20 +394,6 @@ const PatientsList = () => {
         <div className="empty-state">No patients matched your search.</div>
       )}
 
-      {selectedPatient && (
-        <div className="detail-panel">
-          <h4>{selectedPatient.name}</h4>
-          <div className="detail-grid">
-            <span><strong>Doctor:</strong> {selectedPatient.doctor}</span>
-            <span><strong>Date of birth:</strong> {selectedPatient.dob || '-'}</span>
-            <span><strong>Phone:</strong> {selectedPatient.phone}</span>
-            <span><strong>Age:</strong> {calculateAgeFromDob(selectedPatient.dob) ?? selectedPatient.age ?? '-'}</span>
-            <span><strong>Status:</strong> {selectedPatient.status === 'active' ? 'Active' : 'Blocked'}</span>
-            <span><strong>Doctor reports:</strong> {selectedPatient.reportCount || 0}/3</span>
-          </div>
-          <p className="patient-notes">{selectedPatient.notes}</p>
-        </div>
-      )}
     </div>
   );
 };

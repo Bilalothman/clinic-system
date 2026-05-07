@@ -65,6 +65,13 @@ const readStoredSpecialtyChat = (userId) => {
   }
 };
 
+const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result || ''));
+  reader.onerror = () => reject(new Error('Could not read the selected PDF.'));
+  reader.readAsDataURL(file);
+});
+
 const getDoctorClinicStatus = (doctor) => {
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
   const availableDays = Array.isArray(doctor?.availableDays) ? doctor.availableDays : [];
@@ -89,6 +96,7 @@ const PatientOverview = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [specialtyMessage, setSpecialtyMessage] = useState('');
+  const [specialtyPdfFile, setSpecialtyPdfFile] = useState(null);
   const [specialtyMessages, setSpecialtyMessages] = useState(() => readStoredSpecialtyChat(user?.userId));
   const [specialtyLoading, setSpecialtyLoading] = useState(false);
   const [isSpecialtyChatOpen, setIsSpecialtyChatOpen] = useState(false);
@@ -314,13 +322,26 @@ const PatientOverview = () => {
     event.preventDefault();
     const diagnosis = specialtyMessage.trim();
 
-    if (!diagnosis) {
+    if (!diagnosis && !specialtyPdfFile) {
       setSpecialtyMessages((current) => [
         ...current,
         {
           id: `helper-empty-${Date.now()}`,
           sender: 'helper',
-          text: 'Please describe your symptoms or diagnosis first.',
+          text: 'Please describe your symptoms or attach a PDF medical record or lab result first.',
+          isError: true,
+        },
+      ]);
+      return;
+    }
+
+    if (specialtyPdfFile && specialtyPdfFile.size > 8 * 1024 * 1024) {
+      setSpecialtyMessages((current) => [
+        ...current,
+        {
+          id: `helper-pdf-size-${Date.now()}`,
+          sender: 'helper',
+          text: 'Please attach a PDF smaller than 8 MB.',
           isError: true,
         },
       ]);
@@ -329,6 +350,7 @@ const PatientOverview = () => {
 
     setSpecialtyLoading(true);
     setSpecialtyMessage('');
+    setSpecialtyPdfFile(null);
 
     // Show the patient's question immediately before waiting for the API response.
     setSpecialtyMessages((current) => [
@@ -336,11 +358,35 @@ const PatientOverview = () => {
       {
         id: `patient-${Date.now()}`,
         sender: 'patient',
-        text: diagnosis,
+        text: specialtyPdfFile
+          ? `${diagnosis || 'Please explain this PDF in simple words.'}\nAttached PDF: ${specialtyPdfFile.name}`
+          : diagnosis,
       },
     ]);
 
     try {
+      if (specialtyPdfFile) {
+        const fileData = await readFileAsDataUrl(specialtyPdfFile);
+        const explanation = await apiCall('/patient-pdf-explanation', {
+          method: 'POST',
+          body: JSON.stringify({
+            fileName: specialtyPdfFile.name,
+            fileData,
+            question: diagnosis,
+          }),
+        });
+
+        setSpecialtyMessages((current) => [
+          ...current,
+          {
+            id: `helper-pdf-${Date.now()}`,
+            sender: 'helper',
+            text: `${explanation.explanation}\n\n${explanation.disclaimer}`,
+          },
+        ]);
+        return;
+      }
+
       const advice = await apiCall('/patient-specialty-advice', {
         method: 'POST',
         body: JSON.stringify({ diagnosis }),
@@ -399,7 +445,7 @@ const PatientOverview = () => {
 
             <div className="patient-specialty-chat-body">
               <div className="patient-specialty-message bot">
-                Describe your symptoms or diagnosis and I can suggest which specialty to book.
+                Describe symptoms, or attach a PDF medical record/lab result and I can explain medical terms in simple words.
               </div>
 
               {specialtyMessages.map((message) => {
@@ -468,12 +514,34 @@ const PatientOverview = () => {
                 maxLength="1200"
                 value={specialtyMessage}
                 onChange={(event) => setSpecialtyMessage(event.target.value)}
-                placeholder="Type your symptoms..."
+                placeholder="Type symptoms or ask what your PDF means..."
               />
+              <div className="patient-specialty-file-row">
+                <label className="patient-specialty-file-button" htmlFor="patient-specialty-pdf">
+                  Attach PDF
+                </label>
+                <input
+                  id="patient-specialty-pdf"
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] || null;
+                    setSpecialtyPdfFile(file);
+                    event.target.value = '';
+                  }}
+                  disabled={specialtyLoading}
+                />
+                <span>{specialtyPdfFile ? specialtyPdfFile.name : 'No PDF attached'}</span>
+                {specialtyPdfFile && (
+                  <button type="button" onClick={() => setSpecialtyPdfFile(null)} disabled={specialtyLoading}>
+                    Remove
+                  </button>
+                )}
+              </div>
               <div className="patient-specialty-chat-actions">
                 <span>{specialtyMessage.length}/1200</span>
                 <button type="submit" className="patient-specialty-send" disabled={specialtyLoading}>
-                  {specialtyLoading ? 'Checking...' : 'Send'}
+                  {specialtyLoading ? 'Checking...' : specialtyPdfFile ? 'Explain PDF' : 'Send'}
                 </button>
               </div>
             </form>

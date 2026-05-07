@@ -89,7 +89,7 @@ const Patients = () => {
     }
 
     const confirmed = window.confirm(
-      `Report ${patient.name}? If this patient receives reports from 3 different doctors, the account will be blocked automatically.`
+      `Report ${patient.name}? If this patient receives reports from 3 different doctors, appointment booking will be restricted automatically.`
     );
 
     if (!confirmed) {
@@ -109,7 +109,7 @@ const Patients = () => {
       setPatientList((current) =>
         current.map((item) => (item.id === patient.id ? updatedPatient : item))
       );
-      setFeedback(result.message || `${patient.name} was reported.`);
+      setFeedback(`${patient.name} was reported.`);
     } catch (error) {
       setFeedback(error.message);
     } finally {
@@ -144,9 +144,6 @@ const Patients = () => {
             <p className="condition">{patient.condition}</p>
             <span className="next-visit">Next: {formatDisplayDate(patient.nextVisit)}</span>
             <div className="patient-report-status">
-              <span className={patient.status === 'active' ? 'patient-status-active' : 'patient-status-blocked'}>
-                {patient.status === 'active' ? 'Active' : 'Blocked'}
-              </span>
               <span>{patient.reportCount || 0}/3 reports</span>
             </div>
             <div className="patient-widget-info">
@@ -159,7 +156,9 @@ const Patients = () => {
             </div>
             <button
               type="button"
-              className={patient.currentDoctorReported || patient.status !== 'active' ? 'btn-secondary btn-full' : 'btn-danger btn-full'}
+              className={`patient-report-button ${
+                patient.currentDoctorReported || patient.status !== 'active' ? 'btn-secondary' : 'btn-danger'
+              }`}
               disabled={patient.currentDoctorReported || patient.status !== 'active' || reportingPatientId === patient.id}
               onClick={() => handleReportPatient(patient)}
             >
@@ -168,7 +167,7 @@ const Patients = () => {
                 : patient.currentDoctorReported
                   ? 'Reported'
                   : patient.status !== 'active'
-                    ? 'Patient Blocked'
+                    ? 'Report Patient'
                     : 'Report Patient'}
             </button>
           </div>

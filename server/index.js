@@ -8,6 +8,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const OpenAI = require('openai');
+const { toFile } = OpenAI;
 const { OAuth2Client } = require('google-auth-library');
 const { query } = require('./db');
 const { requireAuth, requireRoles } = require('./middleware/auth');
@@ -628,6 +629,94 @@ const getChatSpecialtyAdvice = async ({ diagnosis, specialties }) => {
   };
 };
 
+const normalizePdfFileName = (fileName) => {
+  const normalized = String(fileName || 'medical-document.pdf')
+    .replace(/[^\w.\- ]+/g, '')
+    .trim()
+    .slice(0, 120);
+
+  return normalized.toLowerCase().endsWith('.pdf') ? normalized : `${normalized || 'medical-document'}.pdf`;
+};
+
+const getPdfTerminologyExplanation = async ({ fileName, fileData, patientQuestion }) => {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    const error = new Error('OpenAI API key is not configured.');
+    error.statusCode = 503;
+    throw error;
+  }
+
+  const base64Pdf = String(fileData || '').replace(/^data:application\/pdf;base64,/i, '').trim();
+  if (!base64Pdf) {
+    const error = new Error('Please attach a PDF medical record or lab result.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const pdfBuffer = Buffer.from(base64Pdf, 'base64');
+  if (!pdfBuffer.length || pdfBuffer.length > 8 * 1024 * 1024) {
+    const error = new Error('Please attach a PDF smaller than 8 MB.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const openai = new OpenAI({ apiKey });
+  let uploadedFile;
+
+  try {
+    uploadedFile = await openai.files.create({
+      file: await toFile(pdfBuffer, normalizePdfFileName(fileName), { type: 'application/pdf' }),
+      purpose: 'user_data',
+    });
+
+    const response = await openai.responses.create({
+      model: process.env.OPENAI_PDF_MODEL || 'gpt-4.1-mini',
+      instructions: [
+        'You explain medical records and lab results in plain language for the general public.',
+        'Explain medical terminology, abbreviations, common lab names, and whether values are generally high, low, or normal only when the document provides reference ranges.',
+        'Do not diagnose, prescribe treatment, or tell the patient to stop/start medication.',
+        'Tell the patient to discuss results with their doctor, and recommend urgent care for severe or alarming symptoms.',
+        'Use simple headings and short bullet points.',
+      ].join(' '),
+      input: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'input_text',
+              text: [
+                'Please read this PDF medical record or lab result and explain the terminology in everyday words.',
+                patientQuestion ? `Patient question: ${patientQuestion}` : '',
+                'Focus on what the terms mean for a non-medical person.',
+              ].filter(Boolean).join('\n'),
+            },
+            {
+              type: 'input_file',
+              file_id: uploadedFile.id,
+            },
+          ],
+        },
+      ],
+      max_output_tokens: 750,
+    });
+
+    return String(response.output_text || '').trim()
+      || 'I could not read enough text from this PDF. Please try another PDF or ask your doctor to review it with you.';
+  } catch (error) {
+    if (error?.status === 429 || error?.code === 'insufficient_quota') {
+      const quotaError = new Error('ChatGPT is unavailable because the OpenAI account has no remaining quota. Please check billing or try again later.');
+      quotaError.statusCode = 503;
+      throw quotaError;
+    }
+
+    throw error;
+  } finally {
+    if (uploadedFile?.id) {
+      openai.files.delete(uploadedFile.id).catch(() => {});
+    }
+  }
+};
+
 // Some flows create appointments before a patient record exists, so this helper guarantees one.
 const ensurePatient = async ({ patientId, patientName }) => {
   if (patientId) {
@@ -1091,6 +1180,29 @@ app.post('/api/patient-specialty-advice', requireAuth, requireRoles('patient'), 
   res.json({
     ...advice,
     specialties,
+  });
+}));
+
+app.post('/api/patient-pdf-explanation', requireAuth, requireRoles('patient'), asyncHandler(async (req, res) => {
+  const fileName = String(req.body?.fileName || '').trim();
+  const fileData = String(req.body?.fileData || '').trim();
+  const patientQuestion = String(req.body?.question || '').trim();
+
+  if (!fileData) {
+    res.status(400).json({ message: 'Please attach a PDF medical record or lab result.' });
+    return;
+  }
+
+  if (patientQuestion.length > 1200) {
+    res.status(400).json({ message: 'Please keep your question under 1200 characters.' });
+    return;
+  }
+
+  const explanation = await getPdfTerminologyExplanation({ fileName, fileData, patientQuestion });
+
+  res.json({
+    explanation,
+    disclaimer: medicalDisclaimer,
   });
 }));
 

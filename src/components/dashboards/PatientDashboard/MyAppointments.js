@@ -96,7 +96,7 @@ const formatClinicTimeRange = (times) => {
 };
 
 const normalizeText = (value) => String(value || '').trim().toLowerCase();
-const blockedPatientMessage = 'Your account is blocked by the clinic manager, so you cannot book appointments. Please contact us at 03216269 to remove the block.';
+const blockedPatientMessage = 'Your account cannot book appointments right now. Please contact us at 03216269 for assistance.';
 
 const compressImageToDataUrl = (file) =>
   new Promise((resolve, reject) => {

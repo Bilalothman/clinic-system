@@ -35,6 +35,18 @@ const loadImageSize = (imageSource) => new Promise((resolve, reject) => {
   image.src = imageSource;
 });
 
+const writePdfField = (pdf, label, value, margin, y, contentWidth) => {
+  pdf.setFont('helvetica', 'bold');
+  pdf.text(`${label}:`, margin, y);
+  y += 18;
+
+  pdf.setFont('helvetica', 'normal');
+  const lines = pdf.splitTextToSize(value || 'N/A', contentWidth);
+  pdf.text(lines, margin, y);
+
+  return y + lines.length * 14 + 16;
+};
+
 const exportLabResultPdf = async (result) => {
   const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
   const pageWidth = pdf.internal.pageSize.getWidth();
@@ -86,32 +98,29 @@ const getRecordFileName = (record) => {
     .replace(/(^-|-$)/g, '');
   const safeDate = (record.date || new Date().toISOString().slice(0, 10)).replace(/[^0-9-]/g, '');
 
-  return `${safeDoctor || 'medical-record'}-${safeDate || 'record'}.txt`;
+  return `${safeDoctor || 'medical-record'}-${safeDate || 'record'}.pdf`;
 };
 
-const exportMedicalRecord = (record) => {
-  const lines = [
-    'Medical Record',
-    '',
-    `Date: ${record.date || 'N/A'}`,
-    `Doctor: ${record.doctor || 'Doctor'}`,
-    '',
-    `Diagnosis: ${record.diagnosis || 'No diagnosis provided'}`,
-    '',
-    `Prescription: ${record.prescription || 'No prescription provided'}`,
-    '',
-    `Notes: ${record.notes || 'No notes provided'}`,
-  ];
-  const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
+const exportMedicalRecordPdf = (record) => {
+  const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const margin = 48;
+  const contentWidth = pageWidth - margin * 2;
+  let y = 52;
 
-  link.href = url;
-  link.download = getRecordFileName(record);
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(18);
+  pdf.text('Medical Record', margin, y);
+
+  y += 34;
+  pdf.setFontSize(12);
+  y = writePdfField(pdf, 'Date', record.date || 'N/A', margin, y, contentWidth);
+  y = writePdfField(pdf, 'Doctor', record.doctor || 'Doctor', margin, y, contentWidth);
+  y = writePdfField(pdf, 'Diagnosis', record.diagnosis || 'No diagnosis provided', margin, y, contentWidth);
+  y = writePdfField(pdf, 'Prescription', record.prescription || 'No prescription provided', margin, y, contentWidth);
+  writePdfField(pdf, 'Notes', record.notes || 'No notes provided', margin, y, contentWidth);
+
+  pdf.save(getRecordFileName(record));
 };
 
 const MyRecords = () => {
@@ -169,9 +178,9 @@ const MyRecords = () => {
                   <button
                     type="button"
                     className="record-export"
-                    onClick={() => exportMedicalRecord(record)}
+                    onClick={() => exportMedicalRecordPdf(record)}
                   >
-                    Export
+                    Export PDF
                   </button>
                 </div>
               </div>
@@ -208,7 +217,7 @@ const MyRecords = () => {
                     className="lab-result-export"
                     onClick={() => exportLabResultPdf(result)}
                   >
-                    Export
+                    Export PDF
                   </button>
                 )}
               </div>

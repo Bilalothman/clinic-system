@@ -21,6 +21,13 @@ const getWeekdayFromDate = (dateString) => {
   return date.toLocaleDateString('en-US', { weekday: 'long' });
 };
 
+const escapeExcelValue = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
 const getAppointmentDateTime = (dateString, timeString) => {
   if (!dateString || !timeString) {
     return null;
@@ -60,7 +67,7 @@ const Appointments = ({ showPendingOnly = false }) => {
   const [doctorProfile, setDoctorProfile] = useState(null);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [filterDate, setFilterDate] = useState('');
-  const [implementationFilter, setImplementationFilter] = useState('not-implemented');
+  const [implementationFilter, setImplementationFilter] = useState('all');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [currentDateTime, setCurrentDateTime] = useState(() => new Date());
@@ -207,13 +214,79 @@ const Appointments = ({ showPendingOnly = false }) => {
     }
   };
 
+  const handleDownloadTodaySchedule = () => {
+    const todayDate = getLocalIsoDate();
+    const todayAppointments = appointments
+      .filter((appointment) => appointment.date === todayDate)
+      .sort((first, second) => {
+        const firstDateTime = getAppointmentDateTime(first.date, first.time);
+        const secondDateTime = getAppointmentDateTime(second.date, second.time);
+
+        return (firstDateTime?.getTime() || 0) - (secondDateTime?.getTime() || 0);
+      });
+
+    const headers = ['Time', 'Patient', 'Doctor', 'Specialty', 'Duration', 'Status', 'Payment', 'Reason'];
+    const rows = todayAppointments.length
+      ? todayAppointments.map((appointment) => [
+          appointment.time,
+          appointment.patient,
+          appointment.doctor || doctorProfile?.name || user?.profile?.name || 'Doctor',
+          appointment.specialty,
+          appointment.duration,
+          appointment.status,
+          appointment.paymentMethod === 'whish' ? 'Whish' : appointment.paymentMethod === 'cash' ? 'Cash' : '-',
+          appointment.reason,
+        ])
+      : [['No appointments scheduled for today.', '', '', '', '', '', '', '']];
+
+    const tableRows = [
+      `<tr>${headers.map((header) => `<th>${escapeExcelValue(header)}</th>`).join('')}</tr>`,
+      ...rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeExcelValue(cell)}</td>`).join('')}</tr>`),
+    ].join('');
+    const doctorName = doctorProfile?.name || user?.profile?.name || 'Doctor';
+    const worksheet = `
+      <html>
+        <head>
+          <meta charset="UTF-8" />
+          <style>
+            table { border-collapse: collapse; }
+            th, td { border: 1px solid #94a3b8; padding: 8px; text-align: left; }
+            th { background: #e2e8f0; font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <h2>Today Schedule</h2>
+          <p>Doctor: ${escapeExcelValue(doctorName)}</p>
+          <p>Date: ${escapeExcelValue(todayDate)} (${escapeExcelValue(getWeekdayFromDate(todayDate))})</p>
+          <table>${tableRows}</table>
+        </body>
+      </html>
+    `;
+
+    const blob = new Blob([worksheet], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = `doctor-today-schedule-${todayDate}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(downloadUrl);
+    setFeedback(`Today's schedule for ${todayDate} was downloaded.`);
+  };
+
   return (
     <div className="card fade-in-up">
       <div className="card-header">
         <h3>Today's Appointments</h3>
-        <button type="button" className="btn-primary" onClick={() => setShowCreateForm((current) => !current)}>
-          {showCreateForm ? 'Close Form' : '+ New Appointment'}
-        </button>
+        <div className="appointments-header-actions">
+          <button type="button" className="btn-secondary" onClick={handleDownloadTodaySchedule}>
+            Download Today Schedule
+          </button>
+          <button type="button" className="btn-primary" onClick={() => setShowCreateForm((current) => !current)}>
+            {showCreateForm ? 'Close Form' : '+ New Appointment'}
+          </button>
+        </div>
       </div>
 
       {showCreateForm && (

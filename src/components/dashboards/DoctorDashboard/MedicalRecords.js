@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { jsPDF } from 'jspdf';
 import { useAuth } from '../../../hooks/useAuth';
 import { useApi } from '../../../hooks/useApi';
 import './MedicalRecords.css';
@@ -9,6 +10,114 @@ const getTodayIsoDate = () => {
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+const getSafeFilePart = (value, fallback) => {
+  const safeValue = String(value || fallback)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+
+  return safeValue || fallback;
+};
+
+const getImageFormat = (imageSource) => {
+  const source = String(imageSource || '').toLowerCase();
+
+  if (source.startsWith('data:image/png') || source.endsWith('.png')) {
+    return 'PNG';
+  }
+
+  return 'JPEG';
+};
+
+const loadImageSize = (imageSource) => new Promise((resolve, reject) => {
+  const image = new Image();
+
+  image.onload = () => resolve({
+    width: image.naturalWidth || image.width,
+    height: image.naturalHeight || image.height,
+  });
+  image.onerror = reject;
+  image.src = imageSource;
+});
+
+const writePdfField = (pdf, label, value, margin, y, contentWidth) => {
+  pdf.setFont('helvetica', 'bold');
+  pdf.text(`${label}:`, margin, y);
+  y += 18;
+
+  pdf.setFont('helvetica', 'normal');
+  const lines = pdf.splitTextToSize(value || 'N/A', contentWidth);
+  pdf.text(lines, margin, y);
+
+  return y + lines.length * 14 + 16;
+};
+
+const exportMedicalRecordPdf = (record, doctorName) => {
+  const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const margin = 48;
+  const contentWidth = pageWidth - margin * 2;
+  let y = 52;
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(18);
+  pdf.text('Medical Record', margin, y);
+
+  y += 34;
+  pdf.setFontSize(12);
+  y = writePdfField(pdf, 'Patient', record.patient || 'Patient', margin, y, contentWidth);
+  y = writePdfField(pdf, 'Date', record.date || 'N/A', margin, y, contentWidth);
+  y = writePdfField(pdf, 'Doctor', record.doctor || doctorName || 'Doctor', margin, y, contentWidth);
+  y = writePdfField(pdf, 'Diagnosis', record.diagnosis || 'No diagnosis provided', margin, y, contentWidth);
+  y = writePdfField(pdf, 'Prescription', record.prescription || 'No prescription provided', margin, y, contentWidth);
+  writePdfField(pdf, 'Notes', record.notes || 'No notes provided', margin, y, contentWidth);
+
+  const patient = getSafeFilePart(record.patient, 'patient');
+  const date = getSafeFilePart(record.date || getTodayIsoDate(), 'record');
+  pdf.save(`medical-record-${patient}-${date}.pdf`);
+};
+
+const exportLabResultPdf = async (result, doctorName) => {
+  const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const margin = 48;
+  const contentWidth = pageWidth - margin * 2;
+  let y = 52;
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(18);
+  pdf.text('Lab Result', margin, y);
+
+  y += 34;
+  pdf.setFontSize(12);
+  y = writePdfField(pdf, 'Patient', result.patient || 'Patient', margin, y, contentWidth);
+  y = writePdfField(pdf, 'Test Name', result.testName || 'Lab Test', margin, y, contentWidth);
+  y = writePdfField(pdf, 'Date', result.date || 'N/A', margin, y, contentWidth);
+  y = writePdfField(pdf, 'Doctor', result.doctor || doctorName || 'Doctor', margin, y, contentWidth);
+
+  if (result.resultImage) {
+    try {
+      const size = await loadImageSize(result.resultImage);
+      const imageWidth = contentWidth;
+      const imageHeight = Math.min((size.height / size.width) * imageWidth, 420);
+
+      pdf.addImage(result.resultImage, getImageFormat(result.resultImage), margin, y, imageWidth, imageHeight);
+      y += imageHeight + 30;
+    } catch (error) {
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('Result image could not be added to the PDF.', margin, y);
+      y += 28;
+    }
+  }
+
+  writePdfField(pdf, 'Notes', result.notes || 'No notes provided', margin, y, contentWidth);
+
+  const patient = getSafeFilePart(result.patient, 'patient');
+  const testName = getSafeFilePart(result.testName, 'lab-result');
+  const date = getSafeFilePart(result.date || getTodayIsoDate(), 'report');
+  pdf.save(`${testName}-${patient}-${date}.pdf`);
 };
 
 const compressImageToDataUrl = (file) =>
@@ -70,6 +179,7 @@ const MedicalRecords = () => {
     notes: '',
     date: getTodayIsoDate(),
   });
+  const doctorName = user?.name || user?.fullName || user?.username || 'Doctor';
 
   const loadData = async () => {
     try {
@@ -410,8 +520,17 @@ const MedicalRecords = () => {
             {filteredLabResults.map((result) => (
               <div key={result.id} className="lab-result-item">
                 <div className="lab-result-head">
-                  <h5>{result.patient}</h5>
-                  <span>{result.date}</span>
+                  <div>
+                    <h5>{result.patient}</h5>
+                    <span>{result.date}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="result-export"
+                    onClick={() => exportLabResultPdf(result, doctorName)}
+                  >
+                    Export PDF
+                  </button>
                 </div>
                 <p><strong>{result.testName}</strong></p>
                 {result.resultImage && (
@@ -429,9 +548,18 @@ const MedicalRecords = () => {
           <div className="records-list">
             {filteredMedicalRecords.map((record, index) => (
               <div key={record.id || index} className="record-item">
-                <div>
-                  <h5>{record.patient}</h5>
-                  <span className="record-date">{record.date}</span>
+                <div className="record-item-head">
+                  <div>
+                    <h5>{record.patient}</h5>
+                    <span className="record-date">{record.date}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="result-export"
+                    onClick={() => exportMedicalRecordPdf(record, doctorName)}
+                  >
+                    Export PDF
+                  </button>
                 </div>
                 <p>{record.diagnosis}</p>
                 {record.prescription && <p><strong>Prescription:</strong> {record.prescription}</p>}
