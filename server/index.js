@@ -558,9 +558,10 @@ const buildSpecialtyAdvicePrompt = ({ diagnosis, specialties }) => [
       'You help patients choose which clinic specialty to book.',
       'Do not diagnose, prescribe medicine, or replace medical care.',
       'If the patient message is not medical, symptom-related, or diagnosis-related, set isMedical to false.',
-      'Choose one specialty from the provided clinic specialties whenever possible.',
+      'Choose one specialty from the provided clinic specialties only when that clinic specialty is medically appropriate.',
+      'If none of the provided clinic specialties can reasonably treat the patient concern, set clinicCanTreat to false, set specialty to the best external specialty the patient should look for, and explain that this clinic does not currently have a doctor for that specialty.',
       'If the symptoms may be urgent or life-threatening, set urgency to emergency and recommend emergency care.',
-      'Return only JSON with: isMedical, specialty, urgency, advice, appointmentReason.',
+      'Return only JSON with: isMedical, clinicCanTreat, specialty, urgency, advice, appointmentReason.',
     ].join(' '),
   },
   {
@@ -620,14 +621,32 @@ const getChatSpecialtyAdvice = async ({ diagnosis, specialties }) => {
     };
   }
 
+  if (parsed.clinicCanTreat === false) {
+    const externalSpecialty = String(parsed.specialty || 'another medical specialty').trim();
+    return {
+      isMedical: true,
+      clinicCanTreat: false,
+      specialty: externalSpecialty,
+      urgency: String(parsed.urgency || 'routine').trim(),
+      advice: String(
+        parsed.advice
+        || `Sorry, we do not have a doctor who can treat this in our clinic. Please look for a ${externalSpecialty}.`
+      ).trim(),
+      appointmentReason: String(parsed.appointmentReason || diagnosis).trim(),
+    };
+  }
+
   return {
     isMedical: true,
+    clinicCanTreat: true,
     specialty: String(parsed.specialty || 'General Medicine').trim(),
     urgency: String(parsed.urgency || 'routine').trim(),
     advice: String(parsed.advice || 'Please book an appointment so a clinician can review your symptoms.').trim(),
     appointmentReason: String(parsed.appointmentReason || diagnosis).trim(),
   };
 };
+
+const normalizeSpecialtyName = (value) => String(value || '').trim().toLowerCase();
 
 const normalizePdfFileName = (fileName) => {
   const normalized = String(fileName || 'medical-document.pdf')
@@ -1177,8 +1196,24 @@ app.post('/api/patient-specialty-advice', requireAuth, requireRoles('patient'), 
     return;
   }
 
+  const availableSpecialty = specialties.find(
+    (specialty) => normalizeSpecialtyName(specialty) === normalizeSpecialtyName(advice.specialty)
+  );
+
+  if (!availableSpecialty) {
+    res.json({
+      ...advice,
+      clinicCanTreat: false,
+      advice: advice.advice || `Sorry, we do not have a doctor who can treat you in our clinic. Please go to a ${advice.specialty}.`,
+      specialties,
+    });
+    return;
+  }
+
   res.json({
     ...advice,
+    clinicCanTreat: true,
+    specialty: availableSpecialty,
     specialties,
   });
 }));

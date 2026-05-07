@@ -463,6 +463,25 @@ const PatientOverview = () => {
                     <div className="patient-specialty-result" key={message.id}>
                       {advice.isMedical === false ? (
                         <p className="patient-specialty-disclaimer">{advice.disclaimer}</p>
+                      ) : advice.clinicCanTreat === false ? (
+                        <>
+                          <div>
+                            <span className="patient-specialty-label">Needed specialty</span>
+                            <strong>{advice.specialty}</strong>
+                          </div>
+                          <div>
+                            <span className="patient-specialty-label">Urgency</span>
+                            <strong>{advice.urgency}</strong>
+                          </div>
+                          <p>
+                            Sorry, we do not have a doctor who can treat you in our clinic. Please go to a{' '}
+                            {advice.specialty}.
+                          </p>
+                          {advice.advice && <p>{advice.advice}</p>}
+                          <p className="patient-specialty-disclaimer">
+                            {advice.disclaimer || 'This is not a medical diagnosis. Please ask a healthcare professional for medical advice.'}
+                          </p>
+                        </>
                       ) : (
                         <>
                           <div>
