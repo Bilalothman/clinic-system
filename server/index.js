@@ -1082,8 +1082,7 @@ app.get('/api/auth/me', requireAuth, asyncHandler(async (req, res) => {
 }));
 
 app.patch('/api/profile', requireAuth, asyncHandler(async (req, res) => {
-  const { name, email, phone, address, dob, gender, avatar, avatarName } = req.body || {};
-  const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : null;
+  const { name, phone, address, dob, gender, avatar, avatarName } = req.body || {};
 
   if (req.user.role === 'patient') {
     const existing = await patientById(req.user.userId);
@@ -1123,19 +1122,6 @@ app.patch('/api/profile', requireAuth, asyncHandler(async (req, res) => {
     return;
   }
 
-  if (req.user.role !== 'doctor' && normalizedEmail && normalizedEmail !== String(existing.email || '').trim().toLowerCase()) {
-    const doctorEmailMatch = await query(
-      'SELECT doctor_id FROM doctor WHERE LOWER(email) = LOWER(?) AND doctor_id <> ? LIMIT 1',
-      [normalizedEmail, Number(req.user.userId)]
-    );
-    const patientEmailMatch = await query('SELECT patient_id FROM patient WHERE LOWER(email) = LOWER(?) LIMIT 1', [normalizedEmail]);
-
-    if (doctorEmailMatch[0] || patientEmailMatch[0]) {
-      res.status(409).json({ message: 'Email already exists.' });
-      return;
-    }
-  }
-
   await query(
     `UPDATE doctor
      SET full_name = ?, email = ?, phone = ?, address = ?, dob = ?, gender = ?,
@@ -1143,9 +1129,7 @@ app.patch('/api/profile', requireAuth, asyncHandler(async (req, res) => {
      WHERE doctor_id = ?`,
     [
       name !== undefined ? String(name).trim() : existing.full_name,
-      req.user.role === 'doctor'
-        ? existing.email
-        : email !== undefined ? String(email).trim() : existing.email,
+      existing.email,
       phone !== undefined ? String(phone).trim() : existing.phone,
       address !== undefined ? String(address).trim() : existing.address,
       dob !== undefined ? dob : existing.dob,

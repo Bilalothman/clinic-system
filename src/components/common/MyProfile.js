@@ -79,7 +79,7 @@ const MyProfile = ({ title = 'My Profile' }) => {
   const [selectedDays, setSelectedDays] = useState([]);
   const [selectedTimes, setSelectedTimes] = useState([]);
   const doctorName = profile.name || 'Doctor';
-  const isEmailLocked = user?.role === 'patient' || user?.role === 'doctor';
+  const isEmailLocked = ['patient', 'doctor', 'manager'].includes(user?.role);
 
   useEffect(() => {
     setProfileForm({
