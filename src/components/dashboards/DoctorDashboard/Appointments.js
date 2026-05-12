@@ -423,11 +423,6 @@ const Appointments = ({ showPendingOnly = false }) => {
               Clear Date
             </button>
           )}
-          {implementationFilter !== 'not-implemented' && (
-            <button type="button" className="btn-secondary" onClick={() => setImplementationFilter('not-implemented')}>
-              Show Active
-            </button>
-          )}
         </div>
       </div>
 

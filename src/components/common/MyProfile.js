@@ -79,6 +79,7 @@ const MyProfile = ({ title = 'My Profile' }) => {
   const [selectedDays, setSelectedDays] = useState([]);
   const [selectedTimes, setSelectedTimes] = useState([]);
   const doctorName = profile.name || 'Doctor';
+  const isEmailLocked = user?.role === 'patient' || user?.role === 'doctor';
 
   useEffect(() => {
     setProfileForm({
@@ -221,24 +222,29 @@ const MyProfile = ({ title = 'My Profile' }) => {
       return;
     }
 
-    if (!profileForm.name.trim() || !profileForm.email.trim() || !profileForm.phone.trim()) {
-      setProfileFeedback('Name, email, and phone are required.');
+    if (!profileForm.name.trim() || (!isEmailLocked && !profileForm.email.trim()) || !profileForm.phone.trim()) {
+      setProfileFeedback(isEmailLocked ? 'Name and phone are required.' : 'Name, email, and phone are required.');
       return;
     }
 
     try {
+      const payload = {
+        name: profileForm.name.trim(),
+        phone: profileForm.phone.trim(),
+        gender: profileForm.gender.trim(),
+        dob: profileForm.dob || null,
+        address: profileForm.address.trim(),
+        avatar: profileForm.avatar || null,
+        avatarName: profileForm.avatarName || null,
+      };
+
+      if (!isEmailLocked) {
+        payload.email = profileForm.email.trim();
+      }
+
       const updated = await apiCall('/profile', {
         method: 'PATCH',
-        body: JSON.stringify({
-          name: profileForm.name.trim(),
-          email: profileForm.email.trim(),
-          phone: profileForm.phone.trim(),
-          gender: profileForm.gender.trim(),
-          dob: profileForm.dob || null,
-          address: profileForm.address.trim(),
-          avatar: profileForm.avatar || null,
-          avatarName: profileForm.avatarName || null,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const nextProfile = updated?.profile || {};
@@ -340,6 +346,8 @@ const MyProfile = ({ title = 'My Profile' }) => {
                       value={profileForm.email}
                       onChange={(e) => handleProfileFieldChange('email', e.target.value)}
                       placeholder="doctor@email.com"
+                      disabled={isEmailLocked}
+                      readOnly={isEmailLocked}
                     />
                   </div>
 

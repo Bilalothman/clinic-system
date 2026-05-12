@@ -97,24 +97,6 @@
   font-weight: 700;
 }
 
-.status-badge {
-  padding: 0.4rem 1rem;
-  border-radius: 20px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.status-badge.active {
-  background: linear-gradient(135deg, #10b981, #059669);
-  color: white;
-}
-
-.status-badge.inactive {
-  background: linear-gradient(135deg, #ef4444, #dc2626);
-  color: white;
-}
-
 .btn-sm {
   padding: 0.5rem 1rem;
   font-size: 0.85rem;

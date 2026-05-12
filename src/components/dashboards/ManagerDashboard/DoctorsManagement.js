@@ -160,7 +160,6 @@ const DoctorsManagement = () => {
               <th>Specialty</th>
               <th>Phone</th>
               <th>Fee</th>
-              <th>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -171,7 +170,6 @@ const DoctorsManagement = () => {
                 <td><span className="specialty-badge">{doctor.specialty}</span></td>
                 <td>{doctor.phone}</td>
                 <td><span className="fee-badge">${doctor.fee || 0}</span></td>
-                <td><span className={`status-badge ${doctor.status}`}>{doctor.status}</span></td>
                 <td>
                   <button type="button" className="btn-secondary btn-sm" onClick={() => handleEditDoctor(doctor)}>
                     Edit

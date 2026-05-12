@@ -332,23 +332,44 @@ const getEmailTransport = () => {
   });
 };
 
+const isSmtpAuthError = (error) => {
+  const response = String(error?.response || error?.message || '');
+  return error?.code === 'EAUTH' || error?.responseCode === 535 || response.includes('535-5.7.8');
+};
+
+const createSmtpAuthSetupError = () => {
+  const error = new Error(
+    'Gmail email verification is not configured correctly. Use a Gmail app password for SMTP_PASS, make sure SMTP_USER is the same Gmail account, then restart the server.'
+  );
+  error.statusCode = 503;
+  return error;
+};
+
 const sendGooglePatientVerificationCode = async ({ email, name, code }) => {
   const transporter = getEmailTransport();
   const from = process.env.SMTP_FROM || process.env.SMTP_USER;
 
-  await transporter.sendMail({
-    from,
-    to: email,
-    subject: 'Your Clinic account verification code',
-    text: [
-      `Hello ${name || 'Patient'},`,
-      '',
-      `Your Clinic account verification code is: ${code}`,
-      '',
-      'This code expires in 10 minutes.',
-      'If you did not request this account, you can ignore this email.',
-    ].join('\n'),
-  });
+  try {
+    await transporter.sendMail({
+      from,
+      to: email,
+      subject: 'Your Clinic account verification code',
+      text: [
+        `Hello ${name || 'Patient'},`,
+        '',
+        `Your Clinic account verification code is: ${code}`,
+        '',
+        'This code expires in 10 minutes.',
+        'If you did not request this account, you can ignore this email.',
+      ].join('\n'),
+    });
+  } catch (error) {
+    if (isSmtpAuthError(error)) {
+      throw createSmtpAuthSetupError();
+    }
+
+    throw error;
+  }
 };
 
 const getAppointmentNotificationDetails = async (appointmentId) => {
@@ -1072,19 +1093,6 @@ app.patch('/api/profile', requireAuth, asyncHandler(async (req, res) => {
       return;
     }
 
-    if (normalizedEmail && normalizedEmail !== String(existing.email || '').trim().toLowerCase()) {
-      const doctorEmailMatch = await query('SELECT doctor_id FROM doctor WHERE LOWER(email) = LOWER(?) LIMIT 1', [normalizedEmail]);
-      const patientEmailMatch = await query(
-        'SELECT patient_id FROM patient WHERE LOWER(email) = LOWER(?) AND patient_id <> ? LIMIT 1',
-        [normalizedEmail, Number(req.user.userId)]
-      );
-
-      if (doctorEmailMatch[0] || patientEmailMatch[0]) {
-        res.status(409).json({ message: 'Email already exists.' });
-        return;
-      }
-    }
-
     await query(
       `UPDATE patient
        SET full_name = ?, email = ?, phone = ?, address = ?, dob = ?, gender = ?,
@@ -1092,7 +1100,7 @@ app.patch('/api/profile', requireAuth, asyncHandler(async (req, res) => {
        WHERE patient_id = ?`,
       [
         name !== undefined ? String(name).trim() : existing.full_name,
-        email !== undefined ? String(email).trim() : existing.email,
+        existing.email,
         phone !== undefined ? String(phone).trim() : existing.phone,
         address !== undefined ? String(address).trim() : existing.address,
         dob !== undefined ? dob : existing.dob,
@@ -1115,7 +1123,7 @@ app.patch('/api/profile', requireAuth, asyncHandler(async (req, res) => {
     return;
   }
 
-  if (normalizedEmail && normalizedEmail !== String(existing.email || '').trim().toLowerCase()) {
+  if (req.user.role !== 'doctor' && normalizedEmail && normalizedEmail !== String(existing.email || '').trim().toLowerCase()) {
     const doctorEmailMatch = await query(
       'SELECT doctor_id FROM doctor WHERE LOWER(email) = LOWER(?) AND doctor_id <> ? LIMIT 1',
       [normalizedEmail, Number(req.user.userId)]
@@ -1135,7 +1143,9 @@ app.patch('/api/profile', requireAuth, asyncHandler(async (req, res) => {
      WHERE doctor_id = ?`,
     [
       name !== undefined ? String(name).trim() : existing.full_name,
-      email !== undefined ? String(email).trim() : existing.email,
+      req.user.role === 'doctor'
+        ? existing.email
+        : email !== undefined ? String(email).trim() : existing.email,
       phone !== undefined ? String(phone).trim() : existing.phone,
       address !== undefined ? String(address).trim() : existing.address,
       dob !== undefined ? dob : existing.dob,
