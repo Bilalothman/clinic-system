@@ -501,13 +501,18 @@ const patientById = async (patientId) => {
   return rows[0] || null;
 };
 
-// Reviews are only allowed when the patient has an appointment with that doctor.
-const patientHasDoctorAppointment = async (patientId, doctorId) => {
+// Reviews are only allowed after the patient's confirmed appointment has passed.
+const patientHasCompletedDoctorAppointment = async (patientId, doctorId) => {
   const rows = await query(
     `SELECT appointment_id
      FROM appointment
      WHERE patient_id = ?
        AND doctor_id = ?
+       AND status = 'confirmed'
+       AND STR_TO_DATE(
+         CONCAT(DATE_FORMAT(appointment_date, '%Y-%m-%d'), ' ', appointment_time),
+         '%Y-%m-%d %h:%i %p'
+       ) <= NOW()
      LIMIT 1`,
     [Number(patientId), Number(doctorId)]
   );
@@ -1738,9 +1743,9 @@ app.post('/api/doctors/:id/reviews', requireAuth, asyncHandler(async (req, res) 
     return;
   }
 
-  const canReviewDoctor = await patientHasDoctorAppointment(req.user.userId, doctorId);
+  const canReviewDoctor = await patientHasCompletedDoctorAppointment(req.user.userId, doctorId);
   if (!canReviewDoctor) {
-    res.status(403).json({ message: 'You can only review doctors you have booked with.' });
+    res.status(403).json({ message: 'You can only review doctors after your first confirmed appointment has passed. Rejected appointments cannot be reviewed.' });
     return;
   }
 

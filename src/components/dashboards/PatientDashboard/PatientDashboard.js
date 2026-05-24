@@ -81,6 +81,38 @@ const getDoctorClinicStatus = (doctor) => {
   return isInClinicToday ? 'In Clinic Today' : 'Not In Clinic Today';
 };
 
+const getAppointmentDateTime = (dateString, timeString) => {
+  if (!dateString || !timeString) {
+    return null;
+  }
+
+  const dateParts = String(dateString).split('-').map(Number);
+  const timeMatch = String(timeString).trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+
+  if (dateParts.length !== 3 || dateParts.some((part) => !Number.isFinite(part)) || !timeMatch) {
+    return null;
+  }
+
+  let hours = Number(timeMatch[1]);
+  const minutes = Number(timeMatch[2]);
+  const meridiem = timeMatch[3]?.toUpperCase();
+
+  if (meridiem === 'PM' && hours < 12) {
+    hours += 12;
+  }
+
+  if (meridiem === 'AM' && hours === 12) {
+    hours = 0;
+  }
+
+  return new Date(dateParts[0], dateParts[1] - 1, dateParts[2], hours, minutes);
+};
+
+const isAppointmentImplemented = (appointment, currentDateTime) => {
+  const appointmentDateTime = getAppointmentDateTime(appointment.date, appointment.time);
+  return appointment.status === 'confirmed' && appointmentDateTime && appointmentDateTime <= currentDateTime;
+};
+
 const PatientOverview = () => {
   const { user } = useAuth();
   const { apiCall } = useApi();
@@ -101,6 +133,7 @@ const PatientOverview = () => {
   const [specialtyMessages, setSpecialtyMessages] = useState(() => readStoredSpecialtyChat(user?.userId));
   const [specialtyLoading, setSpecialtyLoading] = useState(false);
   const [isSpecialtyChatOpen, setIsSpecialtyChatOpen] = useState(false);
+  const [currentDateTime, setCurrentDateTime] = useState(() => new Date());
   const specialtyChatBodyRef = useRef(null);
   const getInitials = (name) => String(name || 'D')
     .trim()
@@ -170,10 +203,11 @@ const PatientOverview = () => {
   const reviewableDoctorIds = useMemo(() => {
     return new Set(
       patientAppointments
+        .filter((appointment) => isAppointmentImplemented(appointment, currentDateTime))
         .map((appointment) => Number(appointment.doctorId))
         .filter(Number.isFinite)
     );
-  }, [patientAppointments]);
+  }, [currentDateTime, patientAppointments]);
 
   const reviewableDoctorsCount = useMemo(() => {
     return doctors.filter((doctor) => reviewableDoctorIds.has(Number(doctor.id))).length;
@@ -222,6 +256,14 @@ const PatientOverview = () => {
 
     return () => window.cancelAnimationFrame(frameId);
   }, [isSpecialtyChatOpen, specialtyMessages]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 60000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   const handleReviewFieldChange = (doctorId, field, value) => {
     setReviewFormByDoctor((current) => ({
@@ -456,7 +498,7 @@ const PatientOverview = () => {
         {user?.role === 'patient' && doctors.length > 0 && (
           <div className="patient-review-summary">
             <span>{reviewableDoctorsCount} can be rated</span>
-            <span>{Math.max(doctors.length - reviewableDoctorsCount, 0)} need an appointment first</span>
+            <span>{Math.max(doctors.length - reviewableDoctorsCount, 0)} need a passed appointment first</span>
           </div>
         )}
       </div>
@@ -648,7 +690,7 @@ const PatientOverview = () => {
               <div className={`patient-review-eligibility ${canReviewDoctor ? 'can-review' : 'cannot-review'}`}>
                 {canReviewDoctor
                   ? 'You can rate and give feedback'
-                  : 'Book an appointment first to rate or give feedback'}
+                  : 'You can rate after your first confirmed appointment has passed'}
               </div>
               <div className="patient-doctor-line">
                 <strong>Rating:</strong> {Number(doctor.avgRating || 0).toFixed(1)} / 5
@@ -761,7 +803,7 @@ const PatientOverview = () => {
               )}
               {user?.role === 'patient' && !canReviewDoctor && (
                 <div className="patient-review-locked">
-                  Rating and feedback are available after you book an appointment with this doctor.
+                  Rating and feedback are available after your first confirmed appointment with this doctor has passed. Rejected appointments cannot be reviewed.
                 </div>
               )}
                   </>
