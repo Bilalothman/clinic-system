@@ -14,6 +14,53 @@
   color: #b91c1c;
 }
 
+.manager-summary-grid {
+  margin: 2rem 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  width: 100%;
+}
+
+.manager-summary-card {
+  min-width: 0;
+  border-radius: 12px;
+  border: 1px solid #dbe4ee;
+  background: #ffffff;
+  padding: 1.1rem 1.2rem;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+}
+
+.manager-summary-card span {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.manager-summary-card strong {
+  display: block;
+  color: #111827;
+  font-size: 2rem;
+  line-height: 1.1;
+}
+
+.manager-summary-card p {
+  margin: 0.5rem 0 0;
+  color: #475569;
+  font-weight: 600;
+}
+
+.manager-summary-patients {
+  border-left: 5px solid #2563eb;
+}
+
+.manager-summary-revenue {
+  border-left: 5px solid #059669;
+}
+
 .manager-chart-grid {
   margin: 2rem 0;
   display: grid;
@@ -119,6 +166,7 @@
 }
 
 @media (max-width: 768px) {
+  .manager-summary-grid,
   .manager-chart-grid {
     grid-template-columns: 1fr;
   }

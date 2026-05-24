@@ -18,14 +18,10 @@ const Register = () => {
     name: '',
     email: '',
     password: '',
-    phone: '',
-    address: '',
-    dob: '',
-    gender: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [googleVerification, setGoogleVerification] = useState(null);
+  const [emailVerification, setEmailVerification] = useState(null);
   const [verificationCode, setVerificationCode] = useState('');
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -62,6 +58,17 @@ const Register = () => {
         body: JSON.stringify(formData),
       });
 
+      if (result.requiresVerification) {
+        setEmailVerification({
+          type: 'manual',
+          token: result.verificationToken,
+          email: result.email,
+          message: result.message || 'Verification code sent to your email.',
+        });
+        setVerificationCode('');
+        return;
+      }
+
       login(result.role, result.userId, result.token, result.profile || {});
       redirectByRole(result.role);
     } catch (apiError) {
@@ -74,7 +81,7 @@ const Register = () => {
   const handleGoogleCredential = useCallback(async (credential) => {
     setLoading(true);
     setError('');
-    setGoogleVerification(null);
+    setEmailVerification(null);
     setVerificationCode('');
 
     try {
@@ -84,7 +91,8 @@ const Register = () => {
       });
 
       if (result.requiresVerification) {
-        setGoogleVerification({
+        setEmailVerification({
+          type: 'google',
           token: result.verificationToken,
           email: result.email,
           message: result.message || 'Verification code sent to your Google email.',
@@ -105,11 +113,11 @@ const Register = () => {
     }
   }, [apiCall, login, redirectByRole]);
 
-  const handleGoogleVerificationSubmit = async (event) => {
+  const handleVerificationSubmit = async (event) => {
     event.preventDefault();
 
-    if (!googleVerification?.token) {
-      setError('Please start Google registration again.');
+    if (!emailVerification?.token) {
+      setError('Please start registration again.');
       return;
     }
 
@@ -117,10 +125,10 @@ const Register = () => {
     setError('');
 
     try {
-      const result = await apiCall('/auth/google/verify', {
+      const result = await apiCall(emailVerification.type === 'google' ? '/auth/google/verify' : '/auth/register/verify', {
         method: 'POST',
         body: JSON.stringify({
-          verificationToken: googleVerification.token,
+          verificationToken: emailVerification.token,
           code: verificationCode,
         }),
       });
@@ -144,7 +152,7 @@ const Register = () => {
 
         {error && <div className="error-message">{error}</div>}
 
-        {!googleVerification ? (
+        {!emailVerification ? (
           <>
             <form onSubmit={handleSubmit} className="auth-form" autoComplete="off">
               <div className="form-row">
@@ -172,70 +180,18 @@ const Register = () => {
                 </div>
               </div>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Phone</label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    autoComplete="off"
-                    required
-                    placeholder="+1-234-567-8900"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Date of Birth</label>
-                  <input
-                    type="date"
-                    value={formData.dob}
-                    onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
-                    autoComplete="off"
-                    required
-                  />
-                </div>
-              </div>
-
               <div className="form-group">
-                <label>Address</label>
-                <textarea
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  rows="3"
-                  placeholder="123 Main St, City, State 12345"
-                  autoComplete="off"
+                <label>Password</label>
+                <input
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  autoComplete="new-password"
                   required
+                  placeholder="Create a strong password"
                 />
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Gender</label>
-                  <select
-                    value={formData.gender}
-                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                    autoComplete="off"
-                    required
-                  >
-                    <option value="">Select Gender</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Password</label>
-                  <input
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    autoComplete="new-password"
-                    required
-                    placeholder="Create a strong password"
-                  />
-                  <div className="password-hint">
-                    Must include: 1 capital letter, 1 number, and 1 symbol.
-                  </div>
+                <div className="password-hint">
+                  Must include: 1 capital letter, 1 number, and 1 symbol.
                 </div>
               </div>
 
@@ -248,10 +204,10 @@ const Register = () => {
             <GoogleSignInButton onCredential={handleGoogleCredential} disabled={loading} />
           </>
         ) : (
-          <form className="google-verification-panel" onSubmit={handleGoogleVerificationSubmit}>
+          <form className="google-verification-panel" onSubmit={handleVerificationSubmit}>
             <div>
-              <h2>Verify your Google email</h2>
-              <p>{googleVerification.message} Enter the 6-digit code sent to {googleVerification.email}.</p>
+              <h2>Verify your email</h2>
+              <p>{emailVerification.message} Enter the 6-digit code sent to {emailVerification.email}.</p>
             </div>
             <div className="form-group">
               <label>Verification Code</label>
@@ -272,7 +228,7 @@ const Register = () => {
           </form>
         )}
 
-        {!googleVerification && (
+        {!emailVerification && (
           <div className="auth-footer">
             <p>Already have account? <a href="/login">Sign In</a></p>
           </div>

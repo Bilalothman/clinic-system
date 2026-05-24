@@ -34,6 +34,10 @@ const ManagerDashboard = () => {
       appointments: 0,
       revenue: 0,
     },
+    summary: {
+      patientAccounts: 0,
+      managerRevenue: 0,
+    },
   });
 
   useEffect(() => {
@@ -47,6 +51,15 @@ const ManagerDashboard = () => {
       try {
         const anchorDate = user?.loginDate ? `&anchorDate=${encodeURIComponent(user.loginDate)}` : '';
         const response = await apiCall(`/manager-dashboard/stats?days=7${anchorDate}`);
+        const hasPatientAccountSummary = response?.summary
+          && Object.prototype.hasOwnProperty.call(response.summary, 'patientAccounts');
+        let patientAccounts = Number(response?.summary?.patientAccounts || 0);
+
+        if (!hasPatientAccountSummary) {
+          const patients = await apiCall('/patients');
+          patientAccounts = Array.isArray(patients) ? patients.length : 0;
+        }
+
         setDailyStats({
           days: Array.isArray(response?.days) ? response.days : [],
           metrics: {
@@ -60,6 +73,10 @@ const ManagerDashboard = () => {
             patients: Number(response?.totals?.patients || 0),
             appointments: Number(response?.totals?.appointments || 0),
             revenue: Number(response?.totals?.revenue || 0),
+          },
+          summary: {
+            patientAccounts,
+            managerRevenue: Number(response?.summary?.managerRevenue || response?.totals?.revenue || 0),
           },
         });
       } catch (error) {
@@ -127,6 +144,21 @@ const ManagerDashboard = () => {
     dailyStats.totals.revenue,
   ]);
 
+  const managerSummaryCards = useMemo(() => [
+    {
+      label: 'Patient Accounts',
+      value: dailyStats.summary.patientAccounts.toLocaleString(),
+      detail: 'Total registered patient accounts',
+      colorClass: 'manager-summary-patients',
+    },
+    {
+      label: 'Manager Revenue',
+      value: `$${dailyStats.summary.managerRevenue.toFixed(2)}`,
+      detail: 'Revenue from all paid bills',
+      colorClass: 'manager-summary-revenue',
+    },
+  ], [dailyStats.summary.managerRevenue, dailyStats.summary.patientAccounts]);
+
   return (
     <div className="layout-container">
       <Sidebar role="manager" />
@@ -139,6 +171,15 @@ const ManagerDashboard = () => {
               {statsLoading && <div className="manager-stats-state">Loading chart data...</div>}
               {!statsLoading && !statsError && (
                 <>
+                  <div className="manager-summary-grid fade-in-up">
+                    {managerSummaryCards.map((card) => (
+                      <div className={`manager-summary-card ${card.colorClass}`} key={card.label}>
+                        <span>{card.label}</span>
+                        <strong>{card.value}</strong>
+                        <p>{card.detail}</p>
+                      </div>
+                    ))}
+                  </div>
                   <div className="manager-chart-grid fade-in-up">
                     {chartMetrics.map((metric) => {
                       const maxMetricValue = Math.max(...metric.values.map((item) => item.value), 1);

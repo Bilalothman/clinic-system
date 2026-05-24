@@ -219,10 +219,28 @@ const MyAppointments = () => {
 
   const doctorOptions = useMemo(() => {
     return doctors.reduce((acc, doctor) => {
-      acc[doctor.name] = doctor.specialty;
+      acc[doctor.name] = String(doctor.specialty || '').trim();
       return acc;
     }, {});
   }, [doctors]);
+
+  const specialtyOptions = useMemo(() => {
+    return Array.from(
+      new Set(
+        doctors
+          .map((doctor) => String(doctor.specialty || '').trim())
+          .filter(Boolean)
+      )
+    ).sort((first, second) => first.localeCompare(second));
+  }, [doctors]);
+
+  const filteredDoctors = useMemo(() => {
+    if (!bookingForm.specialty) {
+      return doctors;
+    }
+
+    return doctors.filter((doctor) => normalizeText(doctor.specialty) === normalizeText(bookingForm.specialty));
+  }, [bookingForm.specialty, doctors]);
 
   const doctorFees = useMemo(() => {
     return doctors.reduce((acc, doctor) => {
@@ -368,7 +386,6 @@ const MyAppointments = () => {
       setBookingForm((current) => ({
         ...current,
         doctor: '',
-        specialty: '',
         time: '',
       }));
       return;
@@ -384,6 +401,19 @@ const MyAppointments = () => {
       doctor,
       specialty: doctorOptions[doctor],
       time: fallbackTimes.includes(current.time) ? current.time : (fallbackTimes[0] || ''),
+    }));
+  };
+
+  const handleSpecialtyChange = (specialty) => {
+    setBookingForm((current) => ({
+      ...current,
+      ...((
+        !specialty || doctors.some((doctor) =>
+          doctor.name === current.doctor && normalizeText(doctor.specialty) === normalizeText(specialty)
+        )
+      )
+        ? { specialty }
+        : { specialty, doctor: '', time: '' }),
     }));
   };
 
@@ -558,6 +588,23 @@ const MyAppointments = () => {
       <form className="booking-form" onSubmit={handleBookAppointment}>
         <div className="booking-grid">
           <div className="booking-field">
+            <label htmlFor="specialty">Specialty</label>
+            <select
+              id="specialty"
+              value={bookingForm.specialty}
+              onChange={(e) => handleSpecialtyChange(e.target.value)}
+              required
+            >
+              <option value="">Select a specialty</option>
+              {specialtyOptions.map((specialty) => (
+                <option key={specialty} value={specialty}>
+                  {specialty}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="booking-field">
             <label htmlFor="doctor">Doctor</label>
             <select
               id="doctor"
@@ -565,18 +612,15 @@ const MyAppointments = () => {
               onChange={(e) => handleDoctorChange(e.target.value)}
               required
             >
-              <option value="">Select a doctor</option>
-              {Object.keys(doctorOptions).map((doctor) => (
-                <option key={doctor} value={doctor}>
-                  {doctor}
+              <option value="">
+                {bookingForm.specialty ? 'Select a doctor' : 'Select a specialty first'}
+              </option>
+              {filteredDoctors.map((doctor) => (
+                <option key={doctor.id || doctor.name} value={doctor.name}>
+                  {doctor.name}
                 </option>
               ))}
             </select>
-          </div>
-
-          <div className="booking-field">
-            <label htmlFor="specialty">Specialty</label>
-            <input id="specialty" type="text" value={bookingForm.specialty} readOnly />
           </div>
 
           <div className="booking-field">
@@ -642,6 +686,7 @@ const MyAppointments = () => {
           <div className="booking-field">
             <label htmlFor="pre-fee-image">Whish Pre-fee Image</label>
             <input id="pre-fee-image" type="file" accept="image/*" onChange={handlePreFeeImageChange} required />
+            <div className="pre-fee-payment-note">Please send the fee to 03216269.</div>
             {bookingForm.preFeeImageName && (
               <div className="selected-file">Selected: {bookingForm.preFeeImageName}</div>
             )}

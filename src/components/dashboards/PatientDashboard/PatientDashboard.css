@@ -63,6 +63,22 @@
   color: #475569;
 }
 
+.patient-review-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 0.9rem;
+}
+
+.patient-review-summary span {
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 0.86rem;
+  font-weight: 800;
+  padding: 0.45rem 0.7rem;
+}
+
 .patient-specialty-chat {
   position: fixed;
   right: 1.5rem;
@@ -509,6 +525,29 @@
   font-size: 0.95rem;
 }
 
+.patient-review-eligibility {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0.65rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.25;
+  padding: 0.42rem 0.65rem;
+}
+
+.patient-review-eligibility.can-review {
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.patient-review-eligibility.cannot-review {
+  border: 1px solid #fed7aa;
+  background: #fff7ed;
+  color: #9a3412;
+}
+
 .patient-doctor-line {
   margin-top: 0.45rem;
   color: #1e293b;
@@ -658,6 +697,16 @@
   border-top: 1px solid #e2e8f0;
   display: grid;
   gap: 0.45rem;
+}
+
+.patient-review-locked {
+  margin-top: 0.9rem;
+  border-top: 1px solid #e2e8f0;
+  color: #64748b;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.45;
+  padding-top: 0.85rem;
 }
 
 .patient-review-form label {

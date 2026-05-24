@@ -21,6 +21,7 @@ const googleClientId = process.env.GOOGLE_CLIENT_ID || process.env.REACT_APP_GOO
 const googleClient = new OAuth2Client(googleClientId);
 let startupDbStatus = { ok: false, checkedAt: null, error: null };
 const pendingGooglePatientVerifications = new Map();
+const pendingPatientRegistrations = new Map();
 const defaultDoctorTimeSlots = [
   '08:00 AM',
   '08:15 AM',
@@ -168,7 +169,6 @@ const formatDoctor = (row) => ({
   phone: row.phone,
   email: row.email,
   password: row.password,
-  status: row.status,
   fee: Number(row.consultation_fee || 0),
   availableDays: parseJsonArray(row.available_days),
   availableTimes: parseJsonArray(row.available_times),
@@ -893,10 +893,12 @@ app.post('/api/auth/login', asyncHandler(async (req, res) => {
 }));
 
 app.post('/api/auth/register', asyncHandler(async (req, res) => {
-  const { name, email, password, phone, address, dob, gender } = req.body || {};
+  const { name, email, password } = req.body || {};
+  const normalizedName = String(name || '').trim();
+  const normalizedEmail = String(email || '').trim().toLowerCase();
 
-  if (!name || !email || !password || !phone || !address || !dob || !gender) {
-    res.status(400).json({ message: 'All registration fields are required.' });
+  if (!normalizedName || !normalizedEmail || !password) {
+    res.status(400).json({ message: 'Full name, email, and password are required.' });
     return;
   }
 
@@ -907,8 +909,8 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
     return;
   }
 
-  const existingDoctor = await query('SELECT doctor_id FROM doctor WHERE email = ? LIMIT 1', [email]);
-  const existingPatient = await query('SELECT patient_id FROM patient WHERE email = ? LIMIT 1', [email]);
+  const existingDoctor = await query('SELECT doctor_id FROM doctor WHERE LOWER(email) = LOWER(?) LIMIT 1', [normalizedEmail]);
+  const existingPatient = await query('SELECT patient_id FROM patient WHERE LOWER(email) = LOWER(?) LIMIT 1', [normalizedEmail]);
 
   if (existingDoctor[0] || existingPatient[0]) {
     res.status(409).json({ message: 'Email already exists.' });
@@ -916,12 +918,82 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
   }
 
   const hashedPassword = await bcrypt.hash(password, 10);
+  const code = createVerificationCode();
+  const verificationToken = createVerificationToken();
+
+  await sendGooglePatientVerificationCode({
+    email: normalizedEmail,
+    name: normalizedName,
+    code,
+  });
+
+  pendingPatientRegistrations.set(verificationToken, {
+    name: normalizedName,
+    email: normalizedEmail,
+    passwordHash: hashedPassword,
+    codeHash: getVerificationCodeHash(code),
+    expiresAt: Date.now() + 10 * 60 * 1000,
+    attempts: 0,
+  });
+
+  res.status(202).json({
+    requiresVerification: true,
+    verificationToken,
+    email: normalizedEmail,
+    message: 'Verification code sent to your email.',
+  });
+}));
+
+app.post('/api/auth/register/verify', asyncHandler(async (req, res) => {
+  const verificationToken = String(req.body?.verificationToken || '').trim();
+  const code = String(req.body?.code || '').trim();
+
+  if (!verificationToken || !code) {
+    res.status(400).json({ message: 'Verification token and code are required.' });
+    return;
+  }
+
+  const pending = pendingPatientRegistrations.get(verificationToken);
+  if (!pending) {
+    res.status(400).json({ message: 'Verification session expired. Please register again.' });
+    return;
+  }
+
+  if (pending.expiresAt < Date.now()) {
+    pendingPatientRegistrations.delete(verificationToken);
+    res.status(400).json({ message: 'Verification code expired. Please register again.' });
+    return;
+  }
+
+  pending.attempts += 1;
+  if (pending.attempts > 5) {
+    pendingPatientRegistrations.delete(verificationToken);
+    res.status(429).json({ message: 'Too many verification attempts. Please register again.' });
+    return;
+  }
+
+  if (pending.codeHash !== getVerificationCodeHash(code)) {
+    res.status(400).json({ message: 'Invalid verification code.' });
+    return;
+  }
+
+  const existingDoctor = await query('SELECT doctor_id FROM doctor WHERE LOWER(email) = LOWER(?) LIMIT 1', [pending.email]);
+  const existingPatient = await query('SELECT patient_id FROM patient WHERE LOWER(email) = LOWER(?) LIMIT 1', [pending.email]);
+
+  if (existingDoctor[0] || existingPatient[0]) {
+    pendingPatientRegistrations.delete(verificationToken);
+    res.status(409).json({ message: 'Email already exists.' });
+    return;
+  }
+
   const insert = await query(
     `INSERT INTO patient
       (full_name, email, password, phone, address, dob, gender, status)
      VALUES (?, ?, ?, ?, ?, ?, ?, 'active')`,
-    [name.trim(), email.trim(), hashedPassword, phone.trim(), address.trim(), dob, gender]
+    [pending.name, pending.email, pending.passwordHash, '', null, null, null]
   );
+
+  pendingPatientRegistrations.delete(verificationToken);
 
   const profile = await buildProfile('patient', insert.insertId);
   const token = signToken('patient', insert.insertId);
@@ -1177,7 +1249,6 @@ app.post('/api/patient-specialty-advice', requireAuth, requireRoles('patient'), 
     `SELECT DISTINCT specialty
      FROM doctor
      WHERE role = 'doctor'
-       AND status = 'active'
        AND specialty IS NOT NULL
        AND specialty <> ''
      ORDER BY specialty ASC`
@@ -1506,7 +1577,7 @@ app.get('/api/manager-dashboard/stats', requireAuth, requireRoles('manager'), as
     ),
   ]);
 
-  const [doctorsTotalRows, patientsTotalRows, appointmentsTotalRows, revenueTotalRows] = await Promise.all([
+  const [doctorsTotalRows, patientsTotalRows, patientAccountsRows, appointmentsTotalRows, revenueTotalRows] = await Promise.all([
     query(
       `SELECT COUNT(*) AS total
        FROM doctor
@@ -1517,6 +1588,11 @@ app.get('/api/manager-dashboard/stats', requireAuth, requireRoles('manager'), as
       `SELECT COUNT(DISTINCT patient_id) AS total
        FROM appointment
        WHERE status IN ('pending', 'confirmed')`,
+      []
+    ),
+    query(
+      `SELECT COUNT(*) AS total
+       FROM patient`,
       []
     ),
     query(
@@ -1596,6 +1672,10 @@ app.get('/api/manager-dashboard/stats', requireAuth, requireRoles('manager'), as
       patients: Number(patientsTotalRows[0]?.total || 0),
       appointments: Number(appointmentsTotalRows[0]?.total || 0),
       revenue: Number(revenueTotalRows[0]?.total || 0),
+    },
+    summary: {
+      patientAccounts: Number(patientAccountsRows[0]?.total || 0),
+      managerRevenue: Number(revenueTotalRows[0]?.total || 0),
     },
   });
 }));
@@ -1865,7 +1945,7 @@ app.post('/api/patient-complaints', requireAuth, requireRoles('patient'), asyncH
 }));
 
 app.post('/api/doctors', requireAuth, requireRoles('manager'), asyncHandler(async (req, res) => {
-  const { name, specialty, phone, email, password, status = 'active', fee = 0 } = req.body || {};
+  const { name, specialty, phone, email, password, fee = 0 } = req.body || {};
 
   if (!name || !specialty || !phone || !email || !password) {
     res.status(400).json({ message: 'Missing required doctor fields.' });
@@ -1880,9 +1960,9 @@ app.post('/api/doctors', requireAuth, requireRoles('manager'), asyncHandler(asyn
 
   const insert = await query(
     `INSERT INTO doctor
-      (role, full_name, specialty, phone, email, password, status, consultation_fee, available_days, available_times)
-     VALUES ('doctor', ?, ?, ?, ?, ?, ?, ?, JSON_ARRAY(), ?)`,
-    [name, specialty, phone, email, password, status, Number(fee) || 0, JSON.stringify(defaultDoctorTimeSlots)]
+      (role, full_name, specialty, phone, email, password, consultation_fee, available_days, available_times)
+     VALUES ('doctor', ?, ?, ?, ?, ?, ?, JSON_ARRAY(), ?)`,
+    [name, specialty, phone, email, password, Number(fee) || 0, JSON.stringify(defaultDoctorTimeSlots)]
   );
 
   const created = await doctorById(insert.insertId);
@@ -1891,7 +1971,7 @@ app.post('/api/doctors', requireAuth, requireRoles('manager'), asyncHandler(asyn
 
 app.put('/api/doctors/:id', requireAuth, requireRoles('manager'), asyncHandler(async (req, res) => {
   const doctorId = Number(req.params.id);
-  const { name, specialty, phone, email, password, status, fee } = req.body || {};
+  const { name, specialty, phone, email, password, fee } = req.body || {};
 
   const existing = await doctorById(doctorId);
   if (!existing || existing.role !== 'doctor') {
@@ -1901,7 +1981,7 @@ app.put('/api/doctors/:id', requireAuth, requireRoles('manager'), asyncHandler(a
 
   await query(
     `UPDATE doctor
-     SET full_name = ?, specialty = ?, phone = ?, email = ?, password = ?, status = ?, consultation_fee = ?
+     SET full_name = ?, specialty = ?, phone = ?, email = ?, password = ?, consultation_fee = ?
      WHERE doctor_id = ?`,
     [
       name || existing.full_name,
@@ -1909,7 +1989,6 @@ app.put('/api/doctors/:id', requireAuth, requireRoles('manager'), asyncHandler(a
       phone || existing.phone,
       email || existing.email,
       password || existing.password,
-      status || existing.status,
       Number.isFinite(Number(fee)) ? Number(fee) : existing.consultation_fee,
       doctorId,
     ]

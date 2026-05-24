@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
 import { useApi } from '../../../hooks/useApi';
@@ -85,6 +85,7 @@ const PatientOverview = () => {
   const { user } = useAuth();
   const { apiCall } = useApi();
   const [doctors, setDoctors] = useState([]);
+  const [patientAppointments, setPatientAppointments] = useState([]);
   const [reviewsByDoctor, setReviewsByDoctor] = useState({});
   const [expandedCommentsByDoctor, setExpandedCommentsByDoctor] = useState({});
   const [reviewFormByDoctor, setReviewFormByDoctor] = useState({});
@@ -100,6 +101,7 @@ const PatientOverview = () => {
   const [specialtyMessages, setSpecialtyMessages] = useState(() => readStoredSpecialtyChat(user?.userId));
   const [specialtyLoading, setSpecialtyLoading] = useState(false);
   const [isSpecialtyChatOpen, setIsSpecialtyChatOpen] = useState(false);
+  const specialtyChatBodyRef = useRef(null);
   const getInitials = (name) => String(name || 'D')
     .trim()
     .split(/\s+/)
@@ -139,15 +141,17 @@ const PatientOverview = () => {
   }, [getPatientRatingForDoctor]);
 
   const reloadDoctorsAndReviews = useCallback(async () => {
-    const [doctorRows, reviewRows] = await Promise.all([
+    const [doctorRows, reviewRows, appointmentRows] = await Promise.all([
       apiCall('/doctors'),
       apiCall('/doctor-reviews'),
+      user?.role === 'patient' && user?.userId ? apiCall(`/appointments?patientId=${user.userId}`) : Promise.resolve([]),
     ]);
 
     const safeDoctors = Array.isArray(doctorRows) ? doctorRows : [];
     const groupedReviews = groupReviewsByDoctor(Array.isArray(reviewRows) ? reviewRows : []);
     const initialForms = buildInitialForms(safeDoctors, groupedReviews);
     setDoctors(safeDoctors);
+    setPatientAppointments(Array.isArray(appointmentRows) ? appointmentRows : []);
     setReviewsByDoctor(groupedReviews);
     setReviewFormByDoctor((current) => ({
       ...initialForms,
@@ -161,7 +165,19 @@ const PatientOverview = () => {
         ])
       ),
     }));
-  }, [apiCall, buildInitialForms, groupReviewsByDoctor]);
+  }, [apiCall, buildInitialForms, groupReviewsByDoctor, user?.role, user?.userId]);
+
+  const reviewableDoctorIds = useMemo(() => {
+    return new Set(
+      patientAppointments
+        .map((appointment) => Number(appointment.doctorId))
+        .filter(Number.isFinite)
+    );
+  }, [patientAppointments]);
+
+  const reviewableDoctorsCount = useMemo(() => {
+    return doctors.filter((doctor) => reviewableDoctorIds.has(Number(doctor.id))).length;
+  }, [doctors, reviewableDoctorIds]);
 
   useEffect(() => {
     const loadDoctorsAndReviews = async () => {
@@ -191,6 +207,21 @@ const PatientOverview = () => {
       JSON.stringify(specialtyMessages.slice(-30))
     );
   }, [specialtyMessages, user?.userId]);
+
+  useEffect(() => {
+    if (!isSpecialtyChatOpen || !specialtyChatBodyRef.current) {
+      return undefined;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      const chatBody = specialtyChatBodyRef.current;
+      if (chatBody) {
+        chatBody.scrollTop = chatBody.scrollHeight;
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [isSpecialtyChatOpen, specialtyMessages]);
 
   const handleReviewFieldChange = (doctorId, field, value) => {
     setReviewFormByDoctor((current) => ({
@@ -422,6 +453,12 @@ const PatientOverview = () => {
       <div className="patient-overview-hero">
         <h2>All Doctors</h2>
         <p>Browse every available doctor in the clinic.</p>
+        {user?.role === 'patient' && doctors.length > 0 && (
+          <div className="patient-review-summary">
+            <span>{reviewableDoctorsCount} can be rated</span>
+            <span>{Math.max(doctors.length - reviewableDoctorsCount, 0)} need an appointment first</span>
+          </div>
+        )}
       </div>
 
       <section className={`patient-specialty-chat${isSpecialtyChatOpen ? ' is-open' : ''}`} aria-labelledby="specialty-chat-title">
@@ -443,7 +480,7 @@ const PatientOverview = () => {
               </button>
             </div>
 
-            <div className="patient-specialty-chat-body">
+            <div className="patient-specialty-chat-body" ref={specialtyChatBodyRef}>
               <div className="patient-specialty-message bot">
                 Describe symptoms, or attach a PDF medical record/lab result and I can explain medical terms in simple words.
               </div>
@@ -595,6 +632,7 @@ const PatientOverview = () => {
                 const doctorComments = (reviewsByDoctor[Number(doctor.id)] || []).filter(
                   (review) => String(review.comment || '').trim()
                 );
+                const canReviewDoctor = reviewableDoctorIds.has(Number(doctor.id));
 
                 return (
                   <>
@@ -607,6 +645,11 @@ const PatientOverview = () => {
               </div>
               <h3>{doctor.name}</h3>
               <p className="patient-doctor-specialty">{doctor.specialty || '-'}</p>
+              <div className={`patient-review-eligibility ${canReviewDoctor ? 'can-review' : 'cannot-review'}`}>
+                {canReviewDoctor
+                  ? 'You can rate and give feedback'
+                  : 'Book an appointment first to rate or give feedback'}
+              </div>
               <div className="patient-doctor-line">
                 <strong>Rating:</strong> {Number(doctor.avgRating || 0).toFixed(1)} / 5
                 {' '}({Number(doctor.reviewsCount || 0)} ratings)
@@ -686,7 +729,7 @@ const PatientOverview = () => {
                 </div>
               )}
 
-              {user?.role === 'patient' && (
+              {user?.role === 'patient' && canReviewDoctor && (
                 <div className="patient-review-form">
                   <h4>Rate Or Comment</h4>
                   <label id={`rating-${doctor.id}`}>Rate only</label>
@@ -714,6 +757,11 @@ const PatientOverview = () => {
                   >
                     {submittingDoctorId === Number(doctor.id) ? 'Saving...' : 'Add Comment'}
                   </button>
+                </div>
+              )}
+              {user?.role === 'patient' && !canReviewDoctor && (
+                <div className="patient-review-locked">
+                  Rating and feedback are available after you book an appointment with this doctor.
                 </div>
               )}
                   </>
