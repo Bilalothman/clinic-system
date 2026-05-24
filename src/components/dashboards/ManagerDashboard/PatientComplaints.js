@@ -10,6 +10,20 @@ const getDateOnly = (value) => {
   return String(value).slice(0, 10);
 };
 
+const formatComplaintDate = (value) => {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Unknown date';
+  }
+
+  return date.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+};
+
 const getPatientInitials = (name) => String(name || 'P')
   .trim()
   .split(/\s+/)
@@ -106,6 +120,10 @@ const PatientComplaints = () => {
               <div className="manager-complaint-field">
                 <span>Subject</span>
                 <strong>{complaint.subject}</strong>
+              </div>
+              <div className="manager-complaint-field">
+                <span>Date</span>
+                <strong>{formatComplaintDate(complaint.createdAt)}</strong>
               </div>
               <div className="manager-complaint-field manager-complaint-field-wide">
                 <span>Message</span>
