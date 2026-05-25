@@ -255,6 +255,11 @@ const normalizePaymentMethod = (value) => {
   return ['cash', 'whish'].includes(method) ? method : '';
 };
 
+const normalizeGender = (value) => {
+  const gender = String(value || '').trim().toLowerCase();
+  return ['male', 'female'].includes(gender) ? gender : null;
+};
+
 const isMissingProfileValue = (value) => {
   const normalized = String(value || '').trim().toLowerCase();
   return !normalized || normalized === '-' || normalized === 'registered with google';
@@ -499,6 +504,19 @@ const doctorById = async (doctorId) => {
 const patientById = async (patientId) => {
   const rows = await query('SELECT * FROM patient WHERE patient_id = ?', [patientId]);
   return rows[0] || null;
+};
+
+const patientHasDoctorAppointment = async (patientId, doctorId) => {
+  const rows = await query(
+    `SELECT appointment_id
+     FROM appointment
+     WHERE patient_id = ?
+       AND doctor_id = ?
+     LIMIT 1`,
+    [Number(patientId), Number(doctorId)]
+  );
+
+  return Boolean(rows[0]);
 };
 
 // Reviews are only allowed after the patient's confirmed appointment has passed.
@@ -1180,7 +1198,7 @@ app.patch('/api/profile', requireAuth, asyncHandler(async (req, res) => {
         phone !== undefined ? String(phone).trim() : existing.phone,
         address !== undefined ? String(address).trim() : existing.address,
         dob !== undefined ? dob : existing.dob,
-        gender !== undefined ? String(gender).trim() : existing.gender,
+        gender !== undefined ? normalizeGender(gender) : existing.gender,
         avatar !== undefined ? (avatar || null) : existing.profile_image,
         avatarName !== undefined ? (avatarName || null) : existing.profile_image_name,
         Number(req.user.userId),
@@ -1210,7 +1228,7 @@ app.patch('/api/profile', requireAuth, asyncHandler(async (req, res) => {
       phone !== undefined ? String(phone).trim() : existing.phone,
       address !== undefined ? String(address).trim() : existing.address,
       dob !== undefined ? dob : existing.dob,
-      gender !== undefined ? String(gender).trim() : existing.gender,
+      gender !== undefined ? normalizeGender(gender) : existing.gender,
       avatar !== undefined ? (avatar || null) : existing.profile_image,
       avatarName !== undefined ? (avatarName || null) : existing.profile_image_name,
       Number(req.user.userId),
@@ -2118,49 +2136,8 @@ app.get('/api/patients', requireAuth, asyncHandler(async (req, res) => {
   res.json(rows.map(formatPatient));
 }));
 
-app.post('/api/patients', requireAuth, requireRoles('manager'), asyncHandler(async (req, res) => {
-  const {
-    name,
-    email,
-    password,
-    phone,
-    address = null,
-    dob = null,
-    gender = null,
-    assignedDoctorId = null,
-    notes = '',
-  } = req.body || {};
-
-  if (!name || !phone || !email || !password) {
-    res.status(400).json({ message: 'Patient name, phone, email, and password are required.' });
-    return;
-  }
-
-  const doctorEmailMatch = await query('SELECT doctor_id FROM doctor WHERE LOWER(email) = LOWER(?) LIMIT 1', [email]);
-  const patientEmailMatch = await query('SELECT patient_id FROM patient WHERE LOWER(email) = LOWER(?) LIMIT 1', [email]);
-
-  if (doctorEmailMatch[0] || patientEmailMatch[0]) {
-    res.status(409).json({ message: 'Patient email already exists.' });
-    return;
-  }
-
-  const insert = await query(
-    `INSERT INTO patient
-      (full_name, email, password, phone, address, dob, gender, assigned_doctor_id, notes, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
-    [name, String(email).trim(), password, phone, address, dob, gender, assignedDoctorId, notes]
-  );
-
-  const rows = await query(
-    `SELECT p.*, d.full_name AS doctor_name, NULL AS latest_diagnosis, NULL AS next_visit,
-        ${patientSelectReportFields()}
-     FROM patient p
-     LEFT JOIN doctor d ON d.doctor_id = p.assigned_doctor_id
-     WHERE p.patient_id = ?`,
-    [insert.insertId]
-  );
-
-  res.status(201).json(formatPatient(rows[0]));
+app.post('/api/patients', requireAuth, requireRoles('manager'), asyncHandler(async (_req, res) => {
+  res.status(403).json({ message: 'Managers cannot add patient accounts.' });
 }));
 
 app.put('/api/patients/:id', requireAuth, requireRoles('manager'), asyncHandler(async (req, res) => {
@@ -2174,7 +2151,6 @@ app.put('/api/patients/:id', requireAuth, requireRoles('manager'), asyncHandler(
 
   const {
     name,
-    email,
     password,
     phone,
     address,
@@ -2194,7 +2170,7 @@ app.put('/api/patients/:id', requireAuth, requireRoles('manager'), asyncHandler(
      WHERE patient_id = ?`,
     [
       name ?? existing.full_name,
-      email ?? existing.email,
+      existing.email,
       password ?? existing.password,
       phone ?? existing.phone,
       address ?? existing.address,
@@ -2258,7 +2234,18 @@ app.post('/api/patients/:id/reports', requireAuth, requireRoles('doctor'), async
   );
 
   if (existingReport[0]) {
-    res.status(409).json({ message: 'You have already reported this patient.' });
+    const updated = await patientResponseById(patientId, doctorId);
+    const reportCountRows = await query(
+      'SELECT COUNT(DISTINCT doctor_id) AS total FROM patient_report WHERE patient_id = ?',
+      [patientId]
+    );
+
+    res.json({
+      patient: updated,
+      reportCount: Number(reportCountRows[0]?.total || 0),
+      blocked: updated?.status === 'inactive',
+      message: 'You have already reported this patient.',
+    });
     return;
   }
 

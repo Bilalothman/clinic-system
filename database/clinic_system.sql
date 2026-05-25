@@ -39,7 +39,7 @@ CREATE TABLE doctor (
   available_times JSON NULL,
   address VARCHAR(255) NULL,
   dob DATE NULL,
-  gender ENUM('male', 'female', 'other') NULL,
+  gender ENUM('male', 'female') NULL,
   profile_image LONGTEXT NULL,
   profile_image_name VARCHAR(255) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -58,7 +58,7 @@ CREATE TABLE patient (
   phone VARCHAR(40) NOT NULL,
   address VARCHAR(255) NULL,
   dob DATE NULL,
-  gender ENUM('male', 'female', 'other') NULL,
+  gender ENUM('male', 'female') NULL,
   assigned_doctor_id BIGINT UNSIGNED NULL,
   last_visit DATE NULL,
   notes TEXT NULL,
@@ -255,104 +255,3 @@ CREATE TABLE patient_report (
     FOREIGN KEY (doctor_id) REFERENCES doctor(doctor_id)
     ON DELETE CASCADE
 ) ENGINE=InnoDB;
-
--- Demo data matching existing UI features.
--- Manager + doctors in doctor table.
-INSERT INTO doctor (
-  doctor_id, role, full_name, specialty, phone, email, password,
-  consultation_fee, available_days, available_times, address, dob, gender
-) VALUES
-  (
-    1, 'manager', 'System Administrator', 'Administration', '+961 03 216 269',
-    'manager@gmail.com', '1234', 0,
-    JSON_ARRAY(), JSON_ARRAY(), 'Head Office', NULL, NULL
-  ),
-  (
-    101, 'doctor', 'Dr. John Smith', 'Cardiology', '+1-555-100-0101',
-    'doctor@doctor.com', 'doctor123', 120,
-    JSON_ARRAY('Monday', 'Tuesday', 'Thursday'),
-    JSON_ARRAY(
-      '08:00 AM', '08:15 AM', '08:30 AM', '08:45 AM', '09:00 AM', '09:15 AM', '09:30 AM', '09:45 AM',
-      '10:00 AM', '10:15 AM', '10:30 AM', '10:45 AM', '11:00 AM', '11:15 AM', '11:30 AM', '11:45 AM',
-      '12:00 PM', '12:15 PM', '12:30 PM', '12:45 PM', '01:00 PM', '01:15 PM', '01:30 PM', '01:45 PM',
-      '02:00 PM', '02:15 PM', '02:30 PM', '02:45 PM', '03:00 PM'
-    ),
-    'City Hospital', NULL, NULL
-  ),
-  (
-    102, 'doctor', 'Dr. Sarah Johnson', 'Neurology', '+1-234-567-8902',
-    'sarah.johnson@doctor.com', 'doctor123', 150,
-    JSON_ARRAY('Monday', 'Wednesday', 'Friday'),
-    JSON_ARRAY(
-      '08:00 AM', '08:15 AM', '08:30 AM', '08:45 AM', '09:00 AM', '09:15 AM', '09:30 AM', '09:45 AM',
-      '10:00 AM', '10:15 AM', '10:30 AM', '10:45 AM', '11:00 AM', '11:15 AM', '11:30 AM', '11:45 AM',
-      '12:00 PM', '12:15 PM', '12:30 PM', '12:45 PM', '01:00 PM', '01:15 PM', '01:30 PM', '01:45 PM',
-      '02:00 PM', '02:15 PM', '02:30 PM', '02:45 PM', '03:00 PM'
-    ),
-    'City Hospital', NULL, NULL
-  ),
-  (
-    103, 'doctor', 'Dr. Michael Brown', 'Orthopedics', '+1-234-567-8903',
-    'michael.brown@doctor.com', 'doctor123', 140,
-    JSON_ARRAY('Tuesday', 'Thursday', 'Saturday'),
-    JSON_ARRAY(
-      '08:00 AM', '08:15 AM', '08:30 AM', '08:45 AM', '09:00 AM', '09:15 AM', '09:30 AM', '09:45 AM',
-      '10:00 AM', '10:15 AM', '10:30 AM', '10:45 AM', '11:00 AM', '11:15 AM', '11:30 AM', '11:45 AM',
-      '12:00 PM', '12:15 PM', '12:30 PM', '12:45 PM', '01:00 PM', '01:15 PM', '01:30 PM', '01:45 PM',
-      '02:00 PM', '02:15 PM', '02:30 PM', '02:45 PM', '03:00 PM'
-    ),
-    'City Hospital', NULL, NULL
-  );
-
-INSERT INTO patient (
-  patient_id, full_name, email, password, phone, address, dob, gender,
-  assigned_doctor_id, last_visit, notes, status
-) VALUES
-  (201, 'John Doe', 'patient@patient.com', 'patient123', '+1-555-200-0201', 'Demo Patient Address', NULL, NULL, 101, '2026-05-14', 'Demo patient account.', 'active'),
-  (202, 'Alice Johnson', 'alice.johnson@patient.com', 'patient123', '+1-234-567-8901', NULL, '1997-04-11', NULL, 101, '2026-05-15', 'Follow-up for blood pressure review.', 'active'),
-  (203, 'Bob Wilson', 'bob.wilson@patient.com', 'patient123', '+1-234-567-8902', NULL, '1980-09-24', NULL, 102, '2026-05-16', 'Monitoring diabetes medication response.', 'active'),
-  (204, 'Carol Davis', 'carol.davis@patient.com', 'patient123', '+1-234-567-8903', NULL, '1993-02-07', NULL, 103, '2026-05-17', 'Migraine care plan updated this week.', 'active'),
-  (205, 'Daniel Green', 'daniel.green@patient.com', 'patient123', '+1-234-567-8910', NULL, '1986-06-30', NULL, 102, '2026-05-18', 'Awaiting lab results before next consultation.', 'active'),
-  (206, 'Emma White', 'emma.white@patient.com', 'patient123', '+1-234-567-8911', NULL, '1974-01-15', NULL, 101, '2026-05-19', 'Recovering well after cardiology review.', 'active');
-
-INSERT INTO appointment (
-  appointment_id, patient_id, doctor_id, specialty, appointment_date, appointment_time,
-  duration_minutes, reason, status, doctor_fee, pre_fee_image, pre_fee_image_name
-) VALUES
-  (1, 201, 101, 'Cardiology', '2026-05-20', '10:00 AM', 30, 'Follow-up consultation', 'confirmed', 120.00, NULL, NULL),
-  (2, 201, 102, 'Neurology', '2026-05-21', '02:30 PM', 45, 'Migraine review', 'pending', 150.00, NULL, NULL);
-
-INSERT INTO medical_record (
-  medical_record_id, patient_id, doctor_id, record_date, diagnosis, notes
-) VALUES
-  (1, 202, 101, '2026-05-15', 'Hypertension controlled', 'Follow-up stable.'),
-  (2, 203, 102, '2026-05-16', 'Blood sugar stable', 'Continue current plan.');
-
-INSERT INTO prescription (
-  prescription_id, medical_record_id, patient_id, doctor_id, prescribed_on, medication_details, dosage_instructions
-) VALUES
-  (1, 1, 202, 101, '2026-05-15', 'Amlodipine 5mg', '1 tablet daily after breakfast.'),
-  (2, 2, 203, 102, '2026-05-16', 'Metformin 500mg', '1 tablet twice daily with meals.');
-
-INSERT INTO lab_result (
-  lab_result_id, patient_id, doctor_id, appointment_id, test_name, result_image, result_image_name, notes, result_date
-) VALUES
-  (1, 205, 102, NULL, 'HbA1c', NULL, NULL, 'Awaiting follow-up consultation for interpretation.', '2026-05-18');
-
-INSERT INTO bills (
-  bill_id, appointment_id, patient_id, doctor_id, amount, bill_status,
-  payment_method, issued_date, paid_date, notes
-) VALUES
-  (1, 1, 201, 101, 120.00, 'paid', 'cash', '2026-05-20', '2026-05-20', 'Paid during clinic visit.'),
-  (2, 2, 201, 102, 150.00, 'unpaid', NULL, '2026-05-21', NULL, 'Pending confirmation and payment.');
-
--- Keep AUTO_INCREMENT ahead of seeded IDs.
-ALTER TABLE doctor AUTO_INCREMENT = 1000;
-ALTER TABLE patient AUTO_INCREMENT = 1000;
-ALTER TABLE appointment AUTO_INCREMENT = 100;
-ALTER TABLE medical_record AUTO_INCREMENT = 100;
-ALTER TABLE prescription AUTO_INCREMENT = 100;
-ALTER TABLE lab_result AUTO_INCREMENT = 100;
-ALTER TABLE bills AUTO_INCREMENT = 100;
-ALTER TABLE doctor_review AUTO_INCREMENT = 100;
-ALTER TABLE patient_report AUTO_INCREMENT = 100;

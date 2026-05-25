@@ -109,7 +109,7 @@ const Patients = () => {
       setPatientList((current) =>
         current.map((item) => (item.id === patient.id ? updatedPatient : item))
       );
-      setFeedback(`${patient.name} was reported.`);
+      setFeedback(result.message || `${patient.name} was reported.`);
     } catch (error) {
       setFeedback(error.message);
     } finally {
@@ -167,7 +167,7 @@ const Patients = () => {
                 : patient.currentDoctorReported
                   ? 'Reported'
                   : patient.status !== 'active'
-                    ? 'Report Patient'
+                    ? 'Blocked'
                     : 'Report Patient'}
             </button>
           </div>

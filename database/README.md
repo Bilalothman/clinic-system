@@ -6,7 +6,7 @@
 3. Select: `clinic_system/database/clinic_system.sql`
 4. Click **Go**.
 
-This creates `clinic_system_db` with the clinic tables:
+This creates an empty `clinic_system_db` with the clinic tables:
 - `patient`
 - `appointment`
 - `doctor`
@@ -18,32 +18,13 @@ This creates `clinic_system_db` with the clinic tables:
 - `patient_complaint`
 - `patient_report`
 
-To insert or refresh demo data without dropping the database, run:
-
-```bash
-npm run seed:demo
-```
-
-You can also import `database/demo_data.sql` directly in phpMyAdmin. Select your clinic database first, then import the file.
-
 To remove the old `doctor.status` column from an existing database, run:
 
 ```bash
 npm run migrate:drop-doctor-status
 ```
 
-## 2) Demo credentials (seeded)
-- Manager: `manager@gmail.com` / `1234` (stored in `doctor` with role `manager`)
-- Doctor: `doctor@doctor.com` / `doctor123`
-- Doctor: `maya.lee@clinic.test` / `doctor123`
-- Doctor: `karim.haddad@clinic.test` / `doctor123`
-- Patient: `patient@patient.com` / `patient123`
-- Patient: `alice.johnson@patient.test` / `patient123`
-- Patient: `bob.wilson@patient.test` / `patient123`
-- Patient: `nadine.mansour@patient.test` / `patient123`
-- Patient: `sam.taylor@patient.test` / `patient123`
-
-## 3) Demo behavior preserved
+## 2) Database behavior
 - Doctor fee is in `doctor.consultation_fee`
 - Doctor availability is in:
   - `doctor.available_days` (JSON array)
@@ -53,7 +34,7 @@ npm run migrate:drop-doctor-status
   - `appointment.pre_fee_image_name`
 - Prescription is now split from medical record into its own `prescription` table.
 
-## 4) Backend connection
+## 3) Backend connection
 This project now includes an API server in `server/` (Express + MySQL).
 
 Run:

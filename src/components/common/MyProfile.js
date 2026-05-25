@@ -5,6 +5,15 @@ import { DOCTOR_TIME_SLOTS } from '../../constants/timeSlots';
 import './MyProfile.css';
 
 const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const genderOptions = [
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
+];
+
+const normalizeGender = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return genderOptions.some((option) => option.value === normalized) ? normalized : '';
+};
 
 const formatValue = (value) => {
   if (value === null || value === undefined || value === '') {
@@ -12,6 +21,11 @@ const formatValue = (value) => {
   }
 
   return value;
+};
+
+const formatGender = (value) => {
+  const normalized = normalizeGender(value);
+  return genderOptions.find((option) => option.value === normalized)?.label || '-';
 };
 
 const formatDateOnly = (value) => {
@@ -86,7 +100,7 @@ const MyProfile = ({ title = 'My Profile' }) => {
       name: profile.name || '',
       email: profile.email || '',
       phone: profile.phone || '',
-      gender: profile.gender || '',
+      gender: normalizeGender(profile.gender),
       dob: profile.dob || '',
       address: profile.address || '',
       avatar: profile.avatar || '',
@@ -231,7 +245,7 @@ const MyProfile = ({ title = 'My Profile' }) => {
       const payload = {
         name: profileForm.name.trim(),
         phone: profileForm.phone.trim(),
-        gender: profileForm.gender.trim(),
+        gender: normalizeGender(profileForm.gender) || null,
         dob: profileForm.dob || null,
         address: profileForm.address.trim(),
         avatar: profileForm.avatar || null,
@@ -296,7 +310,7 @@ const MyProfile = ({ title = 'My Profile' }) => {
         </div>
         <div className="profile-item">
           <span className="profile-label">Gender</span>
-          <span className="profile-value">{formatValue(profile.gender)}</span>
+          <span className="profile-value">{formatGender(profile.gender)}</span>
         </div>
         <div className="profile-item">
           <span className="profile-label">Date Of Birth</span>
@@ -363,12 +377,18 @@ const MyProfile = ({ title = 'My Profile' }) => {
 
                   <div className="doctor-profile-field">
                     <label htmlFor="doctor-profile-gender">Gender</label>
-                    <input
+                    <select
                       id="doctor-profile-gender"
                       value={profileForm.gender}
                       onChange={(e) => handleProfileFieldChange('gender', e.target.value)}
-                      placeholder="Male/Female"
-                    />
+                    >
+                      <option value="">Select gender</option>
+                      {genderOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className="doctor-profile-field">
@@ -428,7 +448,7 @@ const MyProfile = ({ title = 'My Profile' }) => {
                         name: profile.name || '',
                         email: profile.email || '',
                         phone: profile.phone || '',
-                        gender: profile.gender || '',
+                        gender: normalizeGender(profile.gender),
                         dob: profile.dob || '',
                         address: profile.address || '',
                         avatar: profile.avatar || '',

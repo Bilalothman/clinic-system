@@ -21,6 +21,7 @@
   border-radius: 14px;
   background: rgba(102, 126, 234, 0.06);
   border: 1px solid rgba(102, 126, 234, 0.2);
+  scroll-margin-top: 1rem;
 }
 
 .patient-form-grid {
@@ -155,6 +156,17 @@
   padding: 1rem 1.5rem 1.25rem;
   border-top: 1px solid rgba(102, 126, 234, 0.12);
   background: rgba(255, 255, 255, 0.72);
+  scroll-margin-top: 1rem;
+}
+
+.patient-detail-scroll-editing {
+  max-height: 420px;
+}
+
+.patient-detail-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
 }
 
 .empty-state {

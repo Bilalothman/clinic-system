@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApi } from '../../../hooks/useApi';
 import './PatientsList.css';
 
@@ -36,6 +36,7 @@ const calculateAgeFromDob = (value) => {
 
 const PatientsList = () => {
   const { apiCall } = useApi();
+  const patientDetailRefs = useRef(new Map());
   const [patients, setPatients] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [showAll, setShowAll] = useState(true);
@@ -59,11 +60,6 @@ const PatientsList = () => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const nextPatientId = useMemo(
-    () => patients.reduce((maxId, patient) => Math.max(maxId, patient.id), 0) + 1,
-    [patients]
-  );
 
   const scopedPatients = useMemo(
     () => (showAll ? patients : patients.slice(0, 3)),
@@ -95,8 +91,18 @@ const PatientsList = () => {
     }));
   };
 
+  const setPatientDetailRef = (patientId, node) => {
+    if (node) {
+      patientDetailRefs.current.set(patientId, node);
+      return;
+    }
+
+    patientDetailRefs.current.delete(patientId);
+  };
+
   const handleEditPatient = (patient) => {
     setEditingPatientId(patient.id);
+    setSelectedPatient(patient);
     setPatientForm({
       name: patient.name,
       email: patient.email || '',
@@ -107,6 +113,11 @@ const PatientsList = () => {
       notes: patient.notes,
     });
     setFeedback(`Editing ${patient.name}. Update details and save changes.`);
+    window.requestAnimationFrame(() => {
+      const detailPanel = patientDetailRefs.current.get(patient.id);
+      detailPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      detailPanel?.querySelector('input, select, textarea')?.focus({ preventScroll: true });
+    });
   };
 
   const handleDeletePatient = async (patientId) => {
@@ -163,48 +174,66 @@ const PatientsList = () => {
   const handleSavePatient = async (event) => {
     event.preventDefault();
 
-    const selectedDoctor = doctors.find((doctor) => doctor.name === patientForm.doctor);
-    const normalizedPatient = {
-      ...patientForm,
-      name: patientForm.name.trim(),
-      email: patientForm.email.trim(),
-      notes: patientForm.notes.trim(),
-      assignedDoctorId: selectedDoctor?.id || null,
-    };
+    if (!editingPatientId) {
+      setFeedback('Managers can edit existing patients, but cannot add patient accounts.');
+      return;
+    }
+
+    const currentPatient = patients.find((item) => item.id === editingPatientId);
+
+    if (!currentPatient) {
+      setFeedback('Patient not found. Refresh the list and try again.');
+      return;
+    }
+
+    const payload = {};
+    const nextName = patientForm.name.trim();
+    const nextPhone = patientForm.phone.trim();
+    const nextDoctor = patientForm.doctor.trim();
+    const nextNotes = patientForm.notes.trim();
+
+    if (nextName && nextName !== (currentPatient.name || '')) {
+      payload.name = nextName;
+    }
+
+    if (nextPhone && nextPhone !== (currentPatient.phone || '')) {
+      payload.phone = nextPhone;
+    }
+
+    if (patientForm.dob !== (currentPatient.dob || '')) {
+      payload.dob = patientForm.dob || null;
+    }
+
+    if (nextDoctor !== (currentPatient.doctor || '')) {
+      const selectedDoctor = doctors.find((doctor) => doctor.name === nextDoctor);
+      payload.assignedDoctorId = selectedDoctor?.id || null;
+    }
+
+    if (nextNotes !== (currentPatient.notes || '')) {
+      payload.notes = nextNotes;
+    }
+
+    if (String(patientForm.password || '').trim()) {
+      payload.password = patientForm.password;
+    }
+
+    if (!Object.keys(payload).length) {
+      setFeedback('No patient changes to save.');
+      return;
+    }
 
     try {
-      if (editingPatientId) {
-        const payload = {
-          ...normalizedPatient,
-          email: normalizedPatient.email || (patients.find((item) => item.id === editingPatientId)?.email || undefined),
-        };
+      const updated = await apiCall(`/patients/${editingPatientId}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
 
-        if (!String(normalizedPatient.password || '').trim()) {
-          delete payload.password;
-        }
-
-        const updated = await apiCall(`/patients/${editingPatientId}`, {
-          method: 'PUT',
-          body: JSON.stringify(payload),
-        });
-
-        const updatedPatients = patients.map((patient) =>
-          patient.id === editingPatientId ? updated : patient
-        );
-        setPatients(updatedPatients);
-        setFeedback(`${updated.name} was updated successfully.`);
-        setSelectedPatient(updated);
-      } else {
-        const created = await apiCall('/patients', {
-          method: 'POST',
-          body: JSON.stringify(normalizedPatient),
-        });
-
-        const withId = { ...created, id: created.id || nextPatientId, lastVisit: created.lastVisit || 'N/A' };
-        setPatients((current) => [withId, ...current]);
-        setFeedback(`${withId.name} was added to patient records.`);
-        setSelectedPatient(withId);
-      }
+      const updatedPatients = patients.map((patient) =>
+        patient.id === editingPatientId ? updated : patient
+      );
+      setPatients(updatedPatients);
+      setFeedback(`${updated.name} was updated successfully.`);
+      setSelectedPatient(updated);
 
       setEditingPatientId(null);
       setPatientForm(emptyPatient);
@@ -223,76 +252,6 @@ const PatientsList = () => {
       </div>
 
       <div className="action-feedback">{feedback}</div>
-
-      <form className="patient-form" onSubmit={handleSavePatient} autoComplete="off">
-        <div className="patient-form-grid">
-          <input
-            type="text"
-            placeholder="Patient Name"
-            value={patientForm.name}
-            onChange={(e) => handleFormChange('name', e.target.value)}
-            autoComplete="off"
-            required
-          />
-          <input
-            type="email"
-            placeholder="Email"
-            value={patientForm.email}
-            onChange={(e) => handleFormChange('email', e.target.value)}
-            autoComplete="new-password"
-            required
-          />
-          <input
-            type="password"
-            placeholder={editingPatientId ? 'Password (leave blank to keep current)' : 'Password'}
-            value={patientForm.password}
-            onChange={(e) => handleFormChange('password', e.target.value)}
-            autoComplete="new-password"
-            required={!editingPatientId}
-          />
-          <input
-            type="text"
-            placeholder="Phone"
-            value={patientForm.phone}
-            onChange={(e) => handleFormChange('phone', e.target.value)}
-            autoComplete="off"
-            required
-          />
-          <input
-            type="date"
-            value={patientForm.dob}
-            onChange={(e) => handleFormChange('dob', e.target.value)}
-            autoComplete="off"
-            required
-          />
-          <input
-            type="text"
-            placeholder="Doctor"
-            value={patientForm.doctor}
-            onChange={(e) => handleFormChange('doctor', e.target.value)}
-            autoComplete="off"
-            required
-          />
-          <input
-            type="text"
-            placeholder="Notes"
-            value={patientForm.notes}
-            onChange={(e) => handleFormChange('notes', e.target.value)}
-            autoComplete="off"
-            required
-          />
-        </div>
-        <div className="patient-form-actions">
-          <button type="submit" className="btn-primary">
-            {editingPatientId ? 'Save Patient' : '+ Add Patient'}
-          </button>
-          {editingPatientId && (
-            <button type="button" className="btn-secondary" onClick={handleCancelEdit}>
-              Cancel Edit
-            </button>
-          )}
-        </div>
-      </form>
 
       <input
         type="search"
@@ -375,15 +334,84 @@ const PatientsList = () => {
               </div>
             </div>
             {selectedPatient?.id === patient.id && (
-              <div className="patient-detail-scroll">
-                <div className="detail-grid">
-                  <span><strong>Doctor:</strong> {selectedPatient.doctor}</span>
-                  <span><strong>Date of birth:</strong> {selectedPatient.dob || '-'}</span>
-                  <span><strong>Phone:</strong> {selectedPatient.phone}</span>
-                  <span><strong>Age:</strong> {calculateAgeFromDob(selectedPatient.dob) ?? selectedPatient.age ?? '-'}</span>
-                  <span><strong>Doctor reports:</strong> {selectedPatient.reportCount || 0}/3</span>
-                </div>
-                <p className="patient-notes">{selectedPatient.notes}</p>
+              <div
+                className={`patient-detail-scroll${editingPatientId === patient.id ? ' patient-detail-scroll-editing' : ''}`}
+                ref={(node) => setPatientDetailRef(patient.id, node)}
+              >
+                {editingPatientId === patient.id ? (
+                  <form className="patient-detail-edit-form" onSubmit={handleSavePatient} autoComplete="off">
+                    <div className="patient-form-grid">
+                      <input
+                        type="text"
+                        placeholder="Patient Name"
+                        value={patientForm.name}
+                        onChange={(e) => handleFormChange('name', e.target.value)}
+                        autoComplete="off"
+                      />
+                      <input
+                        type="email"
+                        placeholder="Email"
+                        value={patientForm.email}
+                        autoComplete="new-password"
+                        disabled
+                        readOnly
+                      />
+                      <input
+                        type="password"
+                        placeholder="Password (leave blank to keep current)"
+                        value={patientForm.password}
+                        onChange={(e) => handleFormChange('password', e.target.value)}
+                        autoComplete="new-password"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Phone"
+                        value={patientForm.phone}
+                        onChange={(e) => handleFormChange('phone', e.target.value)}
+                        autoComplete="off"
+                      />
+                      <input
+                        type="date"
+                        value={patientForm.dob}
+                        onChange={(e) => handleFormChange('dob', e.target.value)}
+                        autoComplete="off"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Doctor"
+                        value={patientForm.doctor}
+                        onChange={(e) => handleFormChange('doctor', e.target.value)}
+                        autoComplete="off"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Notes"
+                        value={patientForm.notes}
+                        onChange={(e) => handleFormChange('notes', e.target.value)}
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div className="patient-form-actions">
+                      <button type="submit" className="btn-primary">
+                        Save Patient
+                      </button>
+                      <button type="button" className="btn-secondary" onClick={handleCancelEdit}>
+                        Cancel Edit
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <>
+                    <div className="detail-grid">
+                      <span><strong>Doctor:</strong> {selectedPatient.doctor}</span>
+                      <span><strong>Date of birth:</strong> {selectedPatient.dob || '-'}</span>
+                      <span><strong>Phone:</strong> {selectedPatient.phone}</span>
+                      <span><strong>Age:</strong> {calculateAgeFromDob(selectedPatient.dob) ?? selectedPatient.age ?? '-'}</span>
+                      <span><strong>Doctor reports:</strong> {selectedPatient.reportCount || 0}/3</span>
+                    </div>
+                    <p className="patient-notes">{selectedPatient.notes}</p>
+                  </>
+                )}
               </div>
             )}
           </div>

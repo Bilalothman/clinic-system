@@ -114,7 +114,8 @@
   color: #475569;
 }
 
-.doctor-profile-field input {
+.doctor-profile-field input,
+.doctor-profile-field select {
   padding: 0.65rem 0.8rem;
   border: 1px solid #cbd5e1;
   border-radius: 10px;

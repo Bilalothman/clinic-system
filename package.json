@@ -33,7 +33,6 @@
     "start:api": "cd server && node index.js",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "seed:demo": "node database/seed-demo.js",
     "migrate:drop-doctor-status": "node database/drop-doctor-status.js",
     "eject": "react-scripts eject"
   },
