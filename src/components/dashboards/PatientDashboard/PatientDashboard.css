@@ -47,10 +47,14 @@
 }
 
 .patient-overview-hero {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  padding: 1.25rem;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(240, 249, 255, 0.9)),
+    radial-gradient(circle at 88% 12%, rgba(16, 185, 129, 0.16), transparent 34%);
+  border: 1px solid rgba(255, 255, 255, 0.66);
+  border-radius: 20px;
+  padding: 1.45rem;
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.10);
+  animation: softReveal 0.52s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .patient-overview-hero h2 {
@@ -481,10 +485,18 @@
 }
 
 .patient-doctor-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.9));
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  border-radius: 18px;
   padding: 1rem;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+.patient-doctor-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(14, 165, 233, 0.28);
+  box-shadow: 0 24px 52px rgba(15, 23, 42, 0.12);
 }
 
 .patient-doctor-photo-row {

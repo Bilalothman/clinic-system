@@ -41,9 +41,11 @@
 
 .record-item {
   padding: 1.5rem;
-  background: rgba(255, 255, 255, 0.7);
-  border-radius: 12px;
-  border-left: 4px solid #667eea;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 252, 0.78));
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.66);
+  border-left: 4px solid #0ea5e9;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
 }
 
 .record-item-head {
@@ -83,9 +85,9 @@
 .lab-form {
   margin-bottom: 1rem;
   padding: 1rem;
-  border-radius: 12px;
-  background: rgba(102, 126, 234, 0.06);
-  border: 1px solid rgba(102, 126, 234, 0.2);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.82), rgba(240, 253, 250, 0.72));
+  border: 1px solid rgba(14, 165, 233, 0.20);
 }
 
 .lab-form-grid {
@@ -132,9 +134,10 @@
 
 .lab-result-item {
   padding: 1rem;
-  border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  background: rgba(248, 250, 252, 0.9);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.66);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 252, 0.78));
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
 }
 
 .lab-result-head {

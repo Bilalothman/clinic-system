@@ -1,10 +1,16 @@
 .welcome-section {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(79, 70, 229, 0.11), rgba(14, 165, 233, 0.12)),
+    radial-gradient(circle at 82% 18%, rgba(16, 185, 129, 0.16), transparent 32%);
   padding: 3rem 2.5rem;
   border-radius: 24px;
   border: 1px solid rgba(102, 126, 234, 0.2);
   text-align: center;
   margin-top: 2rem;
+  box-shadow: 0 22px 58px rgba(15, 23, 42, 0.10);
+  animation: softReveal 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .welcome-section h2 {
@@ -51,10 +57,14 @@
   min-width: 0;
   border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.35);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.9));
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.9)),
+    radial-gradient(circle at top right, rgba(16, 185, 129, 0.12), transparent 42%);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   padding: 1.2rem;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.10);
+  animation: softReveal 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .doctor-chart-header {
@@ -110,6 +120,20 @@
   min-height: 14px;
   border-radius: 10px 10px 6px 6px;
   background: linear-gradient(180deg, #3b82f6, #1d4ed8);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.18);
+  transform-origin: bottom;
+  animation: doctorBarGrow 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes doctorBarGrow {
+  from {
+    transform: scaleY(0.18);
+    opacity: 0.5;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
 }
 
 .doctor-metric-green .doctor-metric-bar-fill {
