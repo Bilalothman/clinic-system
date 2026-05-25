@@ -1,16 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
 import { useApi } from '../../../hooks/useApi';
-import { DOCTOR_TIME_SLOTS } from '../../../constants/timeSlots';
 import './Appointments.css';
-
-const getLocalIsoDate = () => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
 
 const getWeekdayFromDate = (dateString) => {
   if (!dateString) {
@@ -68,29 +59,30 @@ const Appointments = ({ showPendingOnly = false }) => {
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [filterDate, setFilterDate] = useState('');
   const [implementationFilter, setImplementationFilter] = useState('all');
-  const [showCreateForm, setShowCreateForm] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [currentDateTime, setCurrentDateTime] = useState(() => new Date());
-  const [newAppointmentForm, setNewAppointmentForm] = useState({
-    patientId: '',
-    patient: '',
-    date: user?.loginDate || getLocalIsoDate(),
-    time: DOCTOR_TIME_SLOTS[0],
-    duration: '15min',
-    specialty: 'General',
-    reason: '',
-    status: 'confirmed',
+  const [appointmentFormOptions, setAppointmentFormOptions] = useState({
+    serverDate: '',
+    timeSlots: [],
+    specialty: '',
   });
 
   const loadData = async () => {
     try {
-      const [doctorRows, appointmentRows] = await Promise.all([
+      const [doctorRows, appointmentRows, formOptions] = await Promise.all([
         apiCall('/doctors'),
         apiCall(`/appointments?doctorId=${user?.userId || ''}`),
+        apiCall('/appointments/form-options'),
       ]);
 
       const me = (doctorRows || []).find((doctor) => String(doctor.id) === String(user?.userId));
+      const nextOptions = {
+        serverDate: formOptions?.serverDate || '',
+        timeSlots: formOptions?.timeSlots || [],
+        specialty: formOptions?.specialty || me?.specialty || '',
+      };
       setDoctorProfile(me || null);
+      setAppointmentFormOptions(nextOptions);
       setAppointments(appointmentRows || []);
     } catch (error) {
       setFeedback(error.message);
@@ -143,56 +135,6 @@ const Appointments = ({ showPendingOnly = false }) => {
     );
   }, [filteredAppointments, selectedAppointment]);
 
-  const handleFormChange = (field, value) => {
-    setNewAppointmentForm((current) => ({
-      ...current,
-      [field]: value,
-    }));
-  };
-
-  const resetCreateForm = () => {
-    setNewAppointmentForm({
-      patientId: '',
-      patient: '',
-      date: filterDate || user?.loginDate || getLocalIsoDate(),
-      time: DOCTOR_TIME_SLOTS[0],
-      duration: '15min',
-      specialty: doctorProfile?.specialty || 'General',
-      reason: '',
-      status: 'confirmed',
-    });
-  };
-
-  const handleNewAppointment = async (event) => {
-    event.preventDefault();
-
-    try {
-      const created = await apiCall('/appointments', {
-        method: 'POST',
-        body: JSON.stringify({
-          patientId: newAppointmentForm.patientId.trim() || null,
-          patient: newAppointmentForm.patient.trim(),
-          doctorId: Number(user?.userId),
-          specialty: newAppointmentForm.specialty,
-          date: newAppointmentForm.date,
-          time: newAppointmentForm.time,
-          status: newAppointmentForm.status,
-          duration: newAppointmentForm.duration,
-          reason: newAppointmentForm.reason.trim(),
-        }),
-      });
-
-      setAppointments((current) => [created, ...current]);
-      setSelectedAppointment(created);
-      setFilterDate(created.date);
-      setShowCreateForm(false);
-      resetCreateForm();
-      setFeedback(`Appointment added for ${created.patient} on ${created.date} at ${created.time}.`);
-    } catch (error) {
-      setFeedback(error.message);
-    }
-  };
-
   const handleStatusChange = async (appointmentId, status) => {
     const current = appointments.find((appointment) => appointment.id === appointmentId);
     if (current && (current.status === 'confirmed' || current.status === 'cancelled')) {
@@ -215,7 +157,13 @@ const Appointments = ({ showPendingOnly = false }) => {
   };
 
   const handleDownloadTodaySchedule = () => {
-    const todayDate = getLocalIsoDate();
+    const todayDate = appointmentFormOptions.serverDate;
+
+    if (!todayDate) {
+      setFeedback('Could not load today from the backend yet. Please refresh and try again.');
+      return;
+    }
+
     const todayAppointments = appointments
       .filter((appointment) => appointment.date === todayDate)
       .sort((first, second) => {
@@ -283,115 +231,8 @@ const Appointments = ({ showPendingOnly = false }) => {
           <button type="button" className="btn-secondary" onClick={handleDownloadTodaySchedule}>
             Download Today Schedule
           </button>
-          <button type="button" className="btn-primary" onClick={() => setShowCreateForm((current) => !current)}>
-            {showCreateForm ? 'Close Form' : '+ New Appointment'}
-          </button>
         </div>
       </div>
-
-      {showCreateForm && (
-        <form className="create-appointment-form" onSubmit={handleNewAppointment}>
-          <div className="create-grid">
-            <div className="create-field">
-              <label htmlFor="patient-name">Patient Name</label>
-              <input
-                id="patient-name"
-                type="text"
-                value={newAppointmentForm.patient}
-                onChange={(e) => handleFormChange('patient', e.target.value)}
-                placeholder="Enter patient full name"
-                required
-              />
-            </div>
-
-            <div className="create-field">
-              <label htmlFor="patient-id">Patient Account ID</label>
-              <input
-                id="patient-id"
-                type="text"
-                value={newAppointmentForm.patientId}
-                onChange={(e) => handleFormChange('patientId', e.target.value)}
-                placeholder="Optional account ID"
-              />
-            </div>
-
-            <div className="create-field">
-              <label htmlFor="appointment-date">Date</label>
-              <input
-                id="appointment-date"
-                type="date"
-                value={newAppointmentForm.date}
-                onChange={(e) => handleFormChange('date', e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="create-field">
-              <label htmlFor="appointment-time">Time</label>
-              <select
-                id="appointment-time"
-                value={newAppointmentForm.time}
-                onChange={(e) => handleFormChange('time', e.target.value)}
-              >
-                {DOCTOR_TIME_SLOTS.map((timeSlot) => (
-                  <option key={timeSlot} value={timeSlot}>
-                    {timeSlot}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="create-field">
-              <label htmlFor="appointment-duration">Duration</label>
-              <input
-                id="appointment-duration"
-                type="text"
-                value="15min"
-                readOnly
-              />
-            </div>
-
-            <div className="create-field">
-              <label htmlFor="appointment-specialty">Specialty</label>
-              <input
-                id="appointment-specialty"
-                type="text"
-                value={newAppointmentForm.specialty}
-                onChange={(e) => handleFormChange('specialty', e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="create-field">
-              <label htmlFor="appointment-status">Status</label>
-              <select
-                id="appointment-status"
-                value={newAppointmentForm.status}
-                onChange={(e) => handleFormChange('status', e.target.value)}
-              >
-                <option value="confirmed">confirmed</option>
-                <option value="pending">pending</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="create-field">
-            <label htmlFor="appointment-reason">Reason</label>
-            <textarea
-              id="appointment-reason"
-              rows="3"
-              value={newAppointmentForm.reason}
-              onChange={(e) => handleFormChange('reason', e.target.value)}
-              placeholder="Reason for the visit"
-              required
-            />
-          </div>
-
-          <button type="submit" className="btn-primary">
-            Save Appointment
-          </button>
-        </form>
-      )}
 
       <div className="appointments-filter">
         <div className="appointments-filter-field">

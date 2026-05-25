@@ -49,6 +49,21 @@
   background: #ffffff;
 }
 
+.create-auto-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin: 0 0 0.9rem;
+}
+
+.create-auto-summary span {
+  padding: 0.55rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(14, 165, 233, 0.10);
+  color: #0f172a;
+  font-weight: 700;
+}
+
 .appointments-filter {
   display: flex;
   align-items: end;

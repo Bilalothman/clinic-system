@@ -22,6 +22,7 @@ const googleClient = new OAuth2Client(googleClientId);
 let startupDbStatus = { ok: false, checkedAt: null, error: null };
 const pendingGooglePatientVerifications = new Map();
 const pendingPatientRegistrations = new Map();
+const pendingDoctorRegistrations = new Map();
 const defaultDoctorTimeSlots = [
   '08:00 AM',
   '08:15 AM',
@@ -366,6 +367,35 @@ const sendGooglePatientVerificationCode = async ({ email, name, code }) => {
         '',
         'This code expires in 10 minutes.',
         'If you did not request this account, you can ignore this email.',
+      ].join('\n'),
+    });
+  } catch (error) {
+    if (isSmtpAuthError(error)) {
+      throw createSmtpAuthSetupError();
+    }
+
+    throw error;
+  }
+};
+
+const sendDoctorVerificationCode = async ({ email, name, code }) => {
+  const transporter = getEmailTransport();
+  const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+
+  try {
+    await transporter.sendMail({
+      from,
+      to: email,
+      subject: 'Verify your Clinic doctor account',
+      text: [
+        `Hello Dr. ${name || 'Doctor'},`,
+        '',
+        'A clinic manager requested a doctor account for this email address.',
+        `Your doctor account verification code is: ${code}`,
+        '',
+        'Give this code to the manager to complete your account setup.',
+        'This code expires in 10 minutes.',
+        'If you did not expect this account, you can ignore this email.',
       ].join('\n'),
     });
   } catch (error) {
@@ -1969,15 +1999,97 @@ app.post('/api/patient-complaints', requireAuth, requireRoles('patient'), asyncH
 
 app.post('/api/doctors', requireAuth, requireRoles('manager'), asyncHandler(async (req, res) => {
   const { name, specialty, phone, email, password, fee = 0 } = req.body || {};
+  const normalizedName = String(name || '').trim();
+  const normalizedSpecialty = String(specialty || '').trim();
+  const normalizedPhone = String(phone || '').trim();
+  const normalizedEmail = String(email || '').trim().toLowerCase();
 
-  if (!name || !specialty || !phone || !email || !password) {
+  if (!normalizedName || !normalizedSpecialty || !normalizedPhone || !normalizedEmail || !password) {
     res.status(400).json({ message: 'Missing required doctor fields.' });
     return;
   }
 
-  const exists = await query('SELECT doctor_id FROM doctor WHERE email = ? LIMIT 1', [email]);
-  if (exists[0]) {
-    res.status(409).json({ message: 'Doctor email already exists.' });
+  const [doctorExists, patientExists] = await Promise.all([
+    query('SELECT doctor_id FROM doctor WHERE LOWER(email) = LOWER(?) LIMIT 1', [normalizedEmail]),
+    query('SELECT patient_id FROM patient WHERE LOWER(email) = LOWER(?) LIMIT 1', [normalizedEmail]),
+  ]);
+
+  if (doctorExists[0] || patientExists[0]) {
+    res.status(409).json({ message: 'Email already exists.' });
+    return;
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+  const code = createVerificationCode();
+  const verificationToken = createVerificationToken();
+
+  await sendDoctorVerificationCode({
+    email: normalizedEmail,
+    name: normalizedName,
+    code,
+  });
+
+  pendingDoctorRegistrations.set(verificationToken, {
+    name: normalizedName,
+    specialty: normalizedSpecialty,
+    phone: normalizedPhone,
+    email: normalizedEmail,
+    passwordHash: hashedPassword,
+    fee: Number(fee) || 0,
+    codeHash: getVerificationCodeHash(code),
+    expiresAt: Date.now() + 10 * 60 * 1000,
+    attempts: 0,
+  });
+
+  res.status(202).json({
+    requiresVerification: true,
+    verificationToken,
+    email: normalizedEmail,
+    message: 'Verification code sent to the doctor email.',
+  });
+}));
+
+app.post('/api/doctors/verify', requireAuth, requireRoles('manager'), asyncHandler(async (req, res) => {
+  const verificationToken = String(req.body?.verificationToken || '').trim();
+  const code = String(req.body?.code || '').trim();
+
+  if (!verificationToken || !code) {
+    res.status(400).json({ message: 'Verification token and code are required.' });
+    return;
+  }
+
+  const pending = pendingDoctorRegistrations.get(verificationToken);
+  if (!pending) {
+    res.status(400).json({ message: 'Verification session expired. Please add the doctor again.' });
+    return;
+  }
+
+  if (pending.expiresAt < Date.now()) {
+    pendingDoctorRegistrations.delete(verificationToken);
+    res.status(400).json({ message: 'Verification code expired. Please add the doctor again.' });
+    return;
+  }
+
+  pending.attempts += 1;
+  if (pending.attempts > 5) {
+    pendingDoctorRegistrations.delete(verificationToken);
+    res.status(429).json({ message: 'Too many verification attempts. Please add the doctor again.' });
+    return;
+  }
+
+  if (pending.codeHash !== getVerificationCodeHash(code)) {
+    res.status(400).json({ message: 'Invalid verification code.' });
+    return;
+  }
+
+  const [doctorExists, patientExists] = await Promise.all([
+    query('SELECT doctor_id FROM doctor WHERE LOWER(email) = LOWER(?) LIMIT 1', [pending.email]),
+    query('SELECT patient_id FROM patient WHERE LOWER(email) = LOWER(?) LIMIT 1', [pending.email]),
+  ]);
+
+  if (doctorExists[0] || patientExists[0]) {
+    pendingDoctorRegistrations.delete(verificationToken);
+    res.status(409).json({ message: 'Email already exists.' });
     return;
   }
 
@@ -1985,8 +2097,18 @@ app.post('/api/doctors', requireAuth, requireRoles('manager'), asyncHandler(asyn
     `INSERT INTO doctor
       (role, full_name, specialty, phone, email, password, consultation_fee, available_days, available_times)
      VALUES ('doctor', ?, ?, ?, ?, ?, ?, JSON_ARRAY(), ?)`,
-    [name, specialty, phone, email, password, Number(fee) || 0, JSON.stringify(defaultDoctorTimeSlots)]
+    [
+      pending.name,
+      pending.specialty,
+      pending.phone,
+      pending.email,
+      pending.passwordHash,
+      pending.fee,
+      JSON.stringify(defaultDoctorTimeSlots),
+    ]
   );
+
+  pendingDoctorRegistrations.delete(verificationToken);
 
   const created = await doctorById(insert.insertId);
   res.status(201).json(formatDoctor(created));
@@ -1994,7 +2116,7 @@ app.post('/api/doctors', requireAuth, requireRoles('manager'), asyncHandler(asyn
 
 app.put('/api/doctors/:id', requireAuth, requireRoles('manager'), asyncHandler(async (req, res) => {
   const doctorId = Number(req.params.id);
-  const { name, specialty, phone, email, password, fee } = req.body || {};
+  const { name, specialty, phone, password, fee } = req.body || {};
 
   const existing = await doctorById(doctorId);
   if (!existing || existing.role !== 'doctor') {
@@ -2010,7 +2132,7 @@ app.put('/api/doctors/:id', requireAuth, requireRoles('manager'), asyncHandler(a
       name || existing.full_name,
       specialty || existing.specialty,
       phone || existing.phone,
-      email || existing.email,
+      existing.email,
       password || existing.password,
       Number.isFinite(Number(fee)) ? Number(fee) : existing.consultation_fee,
       doctorId,
@@ -2310,13 +2432,30 @@ app.get('/api/appointments', requireAuth, asyncHandler(async (req, res) => {
   res.json(rows.map(formatAppointment));
 }));
 
+app.get('/api/appointments/form-options', requireAuth, requireRoles('doctor'), asyncHandler(async (req, res) => {
+  const doctor = await doctorById(req.user.userId);
+
+  if (!doctor) {
+    res.status(404).json({ message: 'Doctor not found.' });
+    return;
+  }
+
+  const availableTimes = parseJsonArray(doctor.available_times);
+
+  res.json({
+    serverDate: toIsoDate(new Date()),
+    timeSlots: availableTimes.length ? availableTimes : defaultDoctorTimeSlots,
+    specialty: doctor.specialty || '',
+  });
+}));
+
 app.post('/api/appointments', requireAuth, asyncHandler(async (req, res) => {
   const {
     patientId,
     patient,
     doctorId,
     doctor,
-    specialty,
+    specialty: requestedSpecialty,
     date,
     time,
     duration = '15min',
@@ -2328,9 +2467,14 @@ app.post('/api/appointments', requireAuth, asyncHandler(async (req, res) => {
     preFeeImageName = null,
   } = req.body || {};
 
+  if (req.user.role === 'doctor') {
+    res.status(403).json({ message: 'Doctors cannot create appointments for patients.' });
+    return;
+  }
+
   const normalizedPaymentMethod = normalizePaymentMethod(paymentMethod);
 
-  if (!specialty || !date || !time || !reason || (req.user.role === 'patient' && !normalizedPaymentMethod)) {
+  if ((!requestedSpecialty && req.user.role !== 'doctor') || !date || !time || !reason || (req.user.role === 'patient' && !normalizedPaymentMethod)) {
     res.status(400).json({ message: 'Missing required appointment fields.' });
     return;
   }
@@ -2398,6 +2542,26 @@ app.post('/api/appointments', requireAuth, asyncHandler(async (req, res) => {
     return;
   }
 
+  const resolvedSpecialty = req.user.role === 'doctor'
+    ? doctorRow.specialty
+    : requestedSpecialty;
+  const resolvedDuration = req.user.role === 'doctor' ? '15min' : duration;
+
+  if (req.user.role === 'doctor') {
+    const resolvedPatientId = patientId ? Number(patientId) : null;
+
+    if (!resolvedPatientId) {
+      res.status(400).json({ message: 'Please select a patient from your previous appointments.' });
+      return;
+    }
+
+    const isKnownPatient = await patientHasDoctorAppointment(resolvedPatientId, resolvedDoctorId);
+    if (!isKnownPatient) {
+      res.status(403).json({ message: 'You can only add appointments for patients who had appointments with you before.' });
+      return;
+    }
+  }
+
   const ensuredPatient = await ensurePatient({ patientId: patientId ? Number(patientId) : null, patientName: patient });
   const amount = Number.isFinite(Number(doctorFee)) ? Number(doctorFee) : Number(doctorRow.consultation_fee || 0);
 
@@ -2409,10 +2573,10 @@ app.post('/api/appointments', requireAuth, asyncHandler(async (req, res) => {
     [
       ensuredPatient.patient_id,
       resolvedDoctorId,
-      specialty,
+      resolvedSpecialty,
       date,
       time,
-      parseDuration(duration),
+      parseDuration(resolvedDuration),
       reason,
       status,
       amount,
