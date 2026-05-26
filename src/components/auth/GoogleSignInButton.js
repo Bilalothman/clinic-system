@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-const googleScriptUrl = 'https://accounts.google.com/gsi/client';
+const googleScriptLocale = 'en';
+const googleScriptUrl = `https://accounts.google.com/gsi/client?hl=${googleScriptLocale}`;
 const googleScriptId = 'google-identity-services';
 const googleScriptTimeout = 10000;
 
@@ -91,6 +92,7 @@ const renderGoogleButton = ({ buttonElement, clientId, onCredential }) => {
     type: 'standard',
     text: 'continue_with',
     shape: 'rectangular',
+    locale: googleScriptLocale,
     width: buttonElement.offsetWidth || 360,
   });
 };

@@ -1,9 +1,15 @@
 .appointments-overview-filter {
   display: flex;
-  align-items: center;
+  align-items: end;
   gap: 0.7rem;
   margin-bottom: 1rem;
   flex-wrap: wrap;
+}
+
+.appointments-overview-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
 }
 
 .appointments-overview-filter label {
@@ -11,7 +17,8 @@
   color: #334155;
 }
 
-.appointments-overview-filter select {
+.appointments-overview-filter select,
+.appointments-overview-filter input {
   min-width: 220px;
   padding: 0.65rem 0.85rem;
   border-radius: 10px;

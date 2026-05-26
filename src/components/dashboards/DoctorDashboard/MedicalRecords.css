@@ -110,6 +110,7 @@
 }
 
 .lab-field input,
+.lab-field select,
 .lab-field textarea {
   width: 100%;
   padding: 0.75rem 0.85rem;
@@ -117,6 +118,74 @@
   border: 1px solid #cbd5e1;
   font: inherit;
   background: #ffffff;
+}
+
+.patient-dropdown {
+  position: relative;
+  width: 100%;
+}
+
+.patient-dropdown-trigger {
+  width: 100%;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #1e293b;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.patient-dropdown-trigger::after {
+  content: "";
+  float: right;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-top: 0.35rem;
+  border-right: 2px solid #64748b;
+  border-bottom: 2px solid #64748b;
+  transform: rotate(45deg);
+}
+
+.patient-dropdown-trigger:disabled {
+  cursor: not-allowed;
+}
+
+.patient-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 30;
+  width: 100%;
+  max-height: 336px;
+  overflow-y: auto;
+  border: 1px solid rgba(14, 165, 233, 0.22);
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.16);
+  animation: softReveal 0.18s ease-out;
+}
+
+.patient-dropdown-option {
+  display: block;
+  width: 100%;
+  min-height: 42px;
+  padding: 0.65rem 0.85rem;
+  border: 0;
+  border-bottom: 1px solid #f1f5f9;
+  background: #ffffff;
+  color: #1e293b;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.patient-dropdown-option:hover,
+.patient-dropdown-option:focus-visible,
+.patient-dropdown-option.is-selected {
+  background: rgba(14, 165, 233, 0.10);
+  outline: none;
 }
 
 .selected-result-image {

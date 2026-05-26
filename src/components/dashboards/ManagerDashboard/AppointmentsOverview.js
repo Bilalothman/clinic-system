@@ -15,6 +15,7 @@ const AppointmentsOverview = () => {
   const { apiCall } = useApi();
   const [appointments, setAppointments] = useState([]);
   const [doctorFilter, setDoctorFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('');
 
   useEffect(() => {
     const loadAppointments = async () => {
@@ -34,12 +35,13 @@ const AppointmentsOverview = () => {
   }, [appointments]);
 
   const visibleAppointments = useMemo(() => {
-    if (doctorFilter === 'all') {
-      return appointments;
-    }
+    return appointments.filter((appointment) => {
+      const matchesDoctor = doctorFilter === 'all' || appointment.doctor === doctorFilter;
+      const matchesDate = !dateFilter || appointment.date === dateFilter;
 
-    return appointments.filter((appointment) => appointment.doctor === doctorFilter);
-  }, [appointments, doctorFilter]);
+      return matchesDoctor && matchesDate;
+    });
+  }, [appointments, dateFilter, doctorFilter]);
 
   const sortedAppointments = useMemo(() => {
     return [...visibleAppointments].sort((a, b) => {
@@ -58,18 +60,36 @@ const AppointmentsOverview = () => {
       </div>
 
       <div className="appointments-overview-filter">
-        <label htmlFor="manager-doctor-filter">Filter by doctor</label>
-        <select
-          id="manager-doctor-filter"
-          value={doctorFilter}
-          onChange={(e) => setDoctorFilter(e.target.value)}
-        >
-          {doctorOptions.map((doctor) => (
-            <option key={doctor} value={doctor}>
-              {doctor === 'all' ? 'All Doctors' : doctor}
-            </option>
-          ))}
-        </select>
+        <div className="appointments-overview-filter-field">
+          <label htmlFor="manager-doctor-filter">Filter by doctor</label>
+          <select
+            id="manager-doctor-filter"
+            value={doctorFilter}
+            onChange={(e) => setDoctorFilter(e.target.value)}
+          >
+            {doctorOptions.map((doctor) => (
+              <option key={doctor} value={doctor}>
+                {doctor === 'all' ? 'All Doctors' : doctor}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="appointments-overview-filter-field">
+          <label htmlFor="manager-date-filter">Filter by date</label>
+          <input
+            id="manager-date-filter"
+            type="date"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+          />
+        </div>
+
+        {dateFilter && (
+          <button type="button" className="btn-secondary" onClick={() => setDateFilter('')}>
+            Clear Date
+          </button>
+        )}
       </div>
 
       <div className="table-container">
@@ -104,7 +124,7 @@ const AppointmentsOverview = () => {
       </div>
 
       {!sortedAppointments.length && (
-        <div className="empty-state">No appointments found for this doctor filter.</div>
+        <div className="empty-state">No appointments found for these filters.</div>
       )}
     </div>
   );

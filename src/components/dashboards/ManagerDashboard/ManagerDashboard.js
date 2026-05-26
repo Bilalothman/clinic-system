@@ -154,7 +154,7 @@ const ManagerDashboard = () => {
     {
       label: 'Manager Revenue',
       value: `$${dailyStats.summary.managerRevenue.toFixed(2)}`,
-      detail: 'Revenue from all paid bills',
+      detail: '20% share from confirmed appointments',
       colorClass: 'manager-summary-revenue',
     },
   ], [dailyStats.summary.managerRevenue, dailyStats.summary.patientAccounts]);

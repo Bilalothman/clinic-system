@@ -155,12 +155,61 @@ const compressImageToDataUrl = (file) =>
     reader.readAsDataURL(file);
   });
 
+const PatientDropdown = ({ id, value, options, onChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const hasOptions = options.length > 0;
+
+  return (
+    <div
+      className="patient-dropdown"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          setIsOpen(false);
+        }
+      }}
+    >
+      <button
+        id={id}
+        type="button"
+        className="patient-dropdown-trigger"
+        disabled={!hasOptions}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((current) => !current)}
+      >
+        {value || (hasOptions ? 'Select patient' : 'No patients available')}
+      </button>
+
+      {isOpen && hasOptions && (
+        <div className="patient-dropdown-menu" role="listbox" aria-labelledby={id}>
+          {options.map((patient) => (
+            <button
+              key={patient}
+              type="button"
+              className={`patient-dropdown-option${patient === value ? ' is-selected' : ''}`}
+              role="option"
+              aria-selected={patient === value}
+              onClick={() => {
+                onChange(patient);
+                setIsOpen(false);
+              }}
+            >
+              {patient}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const MedicalRecords = () => {
   const { user } = useAuth();
   const { apiCall } = useApi();
   const [labResults, setLabResults] = useState([]);
   const [medicalRecords, setMedicalRecords] = useState([]);
   const [allPatients, setAllPatients] = useState([]);
+  const [appointmentPatients, setAppointmentPatients] = useState([]);
   const [feedback, setFeedback] = useState('Add a new lab result for a patient.');
   const [recordFeedback, setRecordFeedback] = useState('Add a medical record for a patient.');
   const [searchTerm, setSearchTerm] = useState('');
@@ -195,6 +244,7 @@ const MedicalRecords = () => {
       setAllPatients(patientRows || []);
 
       const patientNames = Array.from(new Set((appointmentsRows || []).map((item) => item.patient).filter(Boolean)));
+      setAppointmentPatients(patientNames);
       setRecordForm((current) => ({ ...current, patient: current.patient || patientNames[0] || '' }));
       setLabForm((current) => ({ ...current, patient: current.patient || patientNames[0] || '' }));
     } catch (error) {
@@ -203,6 +253,7 @@ const MedicalRecords = () => {
       setMedicalRecords([]);
       setLabResults([]);
       setAllPatients([]);
+      setAppointmentPatients([]);
     }
   };
 
@@ -212,12 +263,13 @@ const MedicalRecords = () => {
   }, [user?.userId]);
 
   const patientOptions = useMemo(() => {
+    const fromAppointments = appointmentPatients;
     const fromPatients = allPatients.map((item) => item.name);
     const fromRecords = medicalRecords.map((item) => item.patient);
     const fromLabs = labResults.map((item) => item.patient);
-    return Array.from(new Set([...fromPatients, ...fromRecords, ...fromLabs].filter(Boolean)))
+    return Array.from(new Set([...fromAppointments, ...fromPatients, ...fromRecords, ...fromLabs].filter(Boolean)))
       .sort((a, b) => a.localeCompare(b));
-  }, [allPatients, medicalRecords, labResults]);
+  }, [allPatients, appointmentPatients, medicalRecords, labResults]);
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
 
@@ -250,6 +302,11 @@ const MedicalRecords = () => {
 
   const handleAddMedicalRecord = async (event) => {
     event.preventDefault();
+
+    if (!recordForm.patient.trim()) {
+      setRecordFeedback('Please select a patient.');
+      return;
+    }
 
     try {
       const created = await apiCall('/medical-records', {
@@ -287,6 +344,11 @@ const MedicalRecords = () => {
 
   const handleAddLabResult = async (event) => {
     event.preventDefault();
+
+    if (!labForm.patient.trim()) {
+      setFeedback('Please select a patient.');
+      return;
+    }
 
     if (!labForm.resultImage) {
       setFeedback('Please upload a lab result image before saving.');
@@ -363,19 +425,12 @@ const MedicalRecords = () => {
           <div className="lab-form-grid">
             <div className="lab-field">
               <label htmlFor="record-patient">Patient</label>
-              <input
+              <PatientDropdown
                 id="record-patient"
-                list="record-patient-options"
                 value={recordForm.patient}
-                onChange={(e) => handleRecordChange('patient', e.target.value)}
-                placeholder="Patient full name"
-                required
+                options={patientOptions}
+                onChange={(patient) => handleRecordChange('patient', patient)}
               />
-              <datalist id="record-patient-options">
-                {patientOptions.map((patient) => (
-                  <option key={`record-${patient}`} value={patient} />
-                ))}
-              </datalist>
             </div>
 
             <div className="lab-field">
@@ -435,19 +490,12 @@ const MedicalRecords = () => {
           <div className="lab-form-grid">
             <div className="lab-field">
               <label htmlFor="lab-patient">Patient</label>
-              <input
+              <PatientDropdown
                 id="lab-patient"
-                list="lab-patient-options"
                 value={labForm.patient}
-                onChange={(e) => handleChange('patient', e.target.value)}
-                placeholder="Patient full name"
-                required
+                options={patientOptions}
+                onChange={(patient) => handleChange('patient', patient)}
               />
-              <datalist id="lab-patient-options">
-                {patientOptions.map((patient) => (
-                  <option key={patient} value={patient} />
-                ))}
-              </datalist>
             </div>
 
             <div className="lab-field">

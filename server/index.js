@@ -23,6 +23,7 @@ let startupDbStatus = { ok: false, checkedAt: null, error: null };
 const pendingGooglePatientVerifications = new Map();
 const pendingPatientRegistrations = new Map();
 const pendingDoctorRegistrations = new Map();
+const pendingPasswordResets = new Map();
 const defaultDoctorTimeSlots = [
   '08:00 AM',
   '08:15 AM',
@@ -396,6 +397,33 @@ const sendDoctorVerificationCode = async ({ email, name, code }) => {
         'Give this code to the manager to complete your account setup.',
         'This code expires in 10 minutes.',
         'If you did not expect this account, you can ignore this email.',
+      ].join('\n'),
+    });
+  } catch (error) {
+    if (isSmtpAuthError(error)) {
+      throw createSmtpAuthSetupError();
+    }
+
+    throw error;
+  }
+};
+
+const sendPasswordResetCode = async ({ email, name, code }) => {
+  const transporter = getEmailTransport();
+  const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+
+  try {
+    await transporter.sendMail({
+      from,
+      to: email,
+      subject: 'Reset your Clinic account password',
+      text: [
+        `Hello ${name || 'there'},`,
+        '',
+        `Your Clinic password reset code is: ${code}`,
+        '',
+        'This code expires in 10 minutes.',
+        'If you did not request a password reset, you can ignore this email.',
       ].join('\n'),
     });
   } catch (error) {
@@ -943,6 +971,109 @@ app.post('/api/auth/login', asyncHandler(async (req, res) => {
   const profile = await buildProfile('patient', patient.patient_id);
 
   res.json({ token, role: 'patient', userId: String(patient.patient_id), profile });
+}));
+
+app.post('/api/auth/forgot-password', asyncHandler(async (req, res) => {
+  const normalizedEmail = String(req.body?.email || '').trim().toLowerCase();
+
+  if (!normalizedEmail) {
+    res.status(400).json({ message: 'Email is required.' });
+    return;
+  }
+
+  const doctorRows = await query('SELECT doctor_id, role, full_name, email FROM doctor WHERE LOWER(email) = LOWER(?) LIMIT 1', [normalizedEmail]);
+  const patientRows = doctorRows[0]
+    ? []
+    : await query('SELECT patient_id, full_name, email FROM patient WHERE LOWER(email) = LOWER(?) LIMIT 1', [normalizedEmail]);
+
+  const doctor = doctorRows[0];
+  const patient = patientRows[0];
+
+  if (!doctor && !patient) {
+    res.status(404).json({ message: 'No account found for this email.' });
+    return;
+  }
+
+  const role = doctor ? (doctor.role === 'manager' ? 'manager' : 'doctor') : 'patient';
+  const accountId = doctor ? doctor.doctor_id : patient.patient_id;
+  const accountEmail = doctor ? doctor.email : patient.email;
+  const accountName = doctor ? doctor.full_name : patient.full_name;
+  const code = createVerificationCode();
+  const resetToken = createVerificationToken();
+
+  await sendPasswordResetCode({
+    email: accountEmail,
+    name: accountName,
+    code,
+  });
+
+  pendingPasswordResets.set(resetToken, {
+    role,
+    accountId,
+    email: accountEmail,
+    codeHash: getVerificationCodeHash(code),
+    expiresAt: Date.now() + 10 * 60 * 1000,
+    attempts: 0,
+  });
+
+  res.status(202).json({
+    requiresVerification: true,
+    resetToken,
+    email: accountEmail,
+    message: 'Verification code sent to your email.',
+  });
+}));
+
+app.post('/api/auth/reset-password', asyncHandler(async (req, res) => {
+  const resetToken = String(req.body?.resetToken || '').trim();
+  const code = String(req.body?.code || '').trim();
+  const newPassword = String(req.body?.newPassword || '');
+
+  if (!resetToken || !code || !newPassword) {
+    res.status(400).json({ message: 'Reset token, verification code, and new password are required.' });
+    return;
+  }
+
+  if (newPassword.length < 6) {
+    res.status(400).json({ message: 'New password must be at least 6 characters.' });
+    return;
+  }
+
+  const pending = pendingPasswordResets.get(resetToken);
+  if (!pending) {
+    res.status(400).json({ message: 'Password reset session expired. Please request a new code.' });
+    return;
+  }
+
+  if (pending.expiresAt < Date.now()) {
+    pendingPasswordResets.delete(resetToken);
+    res.status(400).json({ message: 'Verification code expired. Please request a new code.' });
+    return;
+  }
+
+  pending.attempts += 1;
+  if (pending.attempts > 5) {
+    pendingPasswordResets.delete(resetToken);
+    res.status(429).json({ message: 'Too many verification attempts. Please request a new code.' });
+    return;
+  }
+
+  if (pending.codeHash !== getVerificationCodeHash(code)) {
+    res.status(400).json({ message: 'Invalid verification code.' });
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+
+  if (pending.role === 'patient') {
+    await query('UPDATE patient SET password = ? WHERE patient_id = ?', [passwordHash, Number(pending.accountId)]);
+  } else {
+    await query('UPDATE doctor SET password = ? WHERE doctor_id = ?', [passwordHash, Number(pending.accountId)]);
+  }
+
+  pendingPasswordResets.delete(resetToken);
+
+  res.json({ message: 'Password changed successfully. You can sign in with your new password.' });
 }));
 
 app.post('/api/auth/register', asyncHandler(async (req, res) => {
@@ -1568,9 +1699,9 @@ app.get('/api/manager-dashboard/stats', requireAuth, requireRoles('manager'), as
       []
     ),
     query(
-      `SELECT MAX(COALESCE(paid_date, issued_date)) AS latest_date
-       FROM bills
-       WHERE bill_status = 'paid'`,
+      `SELECT MAX(a.appointment_date) AS latest_date
+       FROM appointment a
+       WHERE a.status = 'confirmed'`,
       []
     ),
   ]);
@@ -1620,12 +1751,14 @@ app.get('/api/manager-dashboard/stats', requireAuth, requireRoles('manager'), as
     ),
     query(
       `SELECT
-        DATE_FORMAT(COALESCE(paid_date, issued_date), '%Y-%m-%d') AS day,
-        SUM(amount * 0.20) AS revenue_total
-       FROM bills
-       WHERE bill_status = 'paid'
-         AND COALESCE(paid_date, issued_date) BETWEEN ? AND ?
-       GROUP BY COALESCE(paid_date, issued_date)`,
+        DATE_FORMAT(a.appointment_date, '%Y-%m-%d') AS day,
+        SUM(COALESCE(b.amount, a.doctor_fee, d.consultation_fee, 0) * 0.20) AS revenue_total
+       FROM appointment a
+       INNER JOIN doctor d ON d.doctor_id = a.doctor_id
+       LEFT JOIN bills b ON b.appointment_id = a.appointment_id
+       WHERE a.status = 'confirmed'
+         AND a.appointment_date BETWEEN ? AND ?
+       GROUP BY a.appointment_date`,
       [startIso, endIso]
     ),
   ]);
@@ -1655,9 +1788,11 @@ app.get('/api/manager-dashboard/stats', requireAuth, requireRoles('manager'), as
       []
     ),
     query(
-      `SELECT COALESCE(SUM(amount * 0.20), 0) AS total
-       FROM bills
-       WHERE bill_status = 'paid'`,
+      `SELECT COALESCE(SUM(COALESCE(b.amount, a.doctor_fee, d.consultation_fee, 0) * 0.20), 0) AS total
+       FROM appointment a
+       INNER JOIN doctor d ON d.doctor_id = a.doctor_id
+       LEFT JOIN bills b ON b.appointment_id = a.appointment_id
+       WHERE a.status = 'confirmed'`,
       []
     ),
   ]);
