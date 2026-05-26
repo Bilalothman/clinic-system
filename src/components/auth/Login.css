@@ -30,10 +30,10 @@
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.88));
   backdrop-filter: blur(34px) saturate(130%);
   -webkit-backdrop-filter: blur(34px) saturate(130%);
-  border-radius: 22px;
+  border-radius: 20px;
   padding: 3rem;
   width: 100%;
-  max-width: 450px;
+  max-width: 490px;
   box-shadow: 0 30px 90px rgba(15, 23, 42, 0.28);
   border: 1px solid rgba(255, 255, 255, 0.66);
   animation: softReveal 0.58s cubic-bezier(0.16, 1, 0.3, 1), cardFloat 7s ease-in-out 0.8s infinite;
@@ -43,7 +43,7 @@
 
 .auth-header {
   text-align: center;
-  margin-bottom: 2.5rem;
+  margin-bottom: 2rem;
 }
 
 .auth-header h1 {
@@ -79,6 +79,99 @@
   animation: softReveal 0.32s ease-out;
 }
 
+.reset-panel {
+  padding: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 18px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.78), rgba(241, 245, 249, 0.66));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  animation: softReveal 0.28s ease-out;
+}
+
+.reset-progress {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 1.2rem;
+}
+
+.reset-step {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #64748b;
+}
+
+.reset-step span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 1.45rem;
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.reset-step strong {
+  overflow: hidden;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reset-step.is-active {
+  border-color: rgba(14, 165, 233, 0.32);
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.10), rgba(14, 165, 233, 0.12));
+  color: #0f172a;
+}
+
+.reset-step.is-active span {
+  background: linear-gradient(135deg, #4f46e5, #0ea5e9);
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(14, 165, 233, 0.24);
+}
+
+.reset-step.is-complete span::before {
+  content: "";
+  width: 0.42rem;
+  height: 0.72rem;
+  border-right: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+  transform: rotate(45deg) translateY(-1px);
+}
+
+.reset-step.is-complete span {
+  color: transparent;
+}
+
+.reset-email-chip {
+  display: block;
+  max-width: 100%;
+  margin: 0 0 1rem;
+  padding: 0.7rem 0.85rem;
+  overflow: hidden;
+  border: 1px solid rgba(14, 165, 233, 0.18);
+  border-radius: 12px;
+  background: rgba(14, 165, 233, 0.08);
+  color: #075985;
+  font-size: 0.92rem;
+  font-weight: 700;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .form-group {
   margin-bottom: 1.5rem;
 }
@@ -105,6 +198,18 @@
   border-color: #667eea;
   box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
   transform: translateY(-2px);
+}
+
+.verification-code-input {
+  font-size: 1.35rem !important;
+  font-weight: 800;
+  letter-spacing: 0.18rem;
+  text-align: center;
+}
+
+.reset-password-grid {
+  display: grid;
+  gap: 1rem;
 }
 
 .auth-btn {
@@ -182,6 +287,16 @@
 .auth-secondary-btn:disabled {
   cursor: not-allowed;
   opacity: 0.65;
+}
+
+.reset-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.reset-actions .auth-secondary-btn {
+  margin-top: 0.8rem;
 }
 
 .auth-divider {
@@ -273,4 +388,36 @@
 @keyframes float {
   0%, 100% { transform: translateY(0px); }
   50% { transform: translateY(-20px); }
+}
+
+@media (max-width: 560px) {
+  .auth-container {
+    padding: 1rem;
+  }
+
+  .auth-card {
+    padding: 2rem 1.25rem;
+  }
+
+  .auth-header h1 {
+    font-size: 2rem;
+  }
+
+  .reset-panel {
+    padding: 0.8rem;
+  }
+
+  .reset-step {
+    justify-content: center;
+    padding: 0.55rem;
+  }
+
+  .reset-step strong {
+    display: none;
+  }
+
+  .reset-actions {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
 }

@@ -6,6 +6,29 @@ import LoadingSpinner from '../common/LoadingSpinner';
 import GoogleSignInButton from './GoogleSignInButton';
 import '../auth/Login.css';
 
+const ResetProgress = ({ mode }) => {
+  const steps = [
+    { key: 'email', label: 'Email' },
+    { key: 'code', label: 'Code' },
+    { key: 'password', label: 'Password' },
+  ];
+  const activeIndex = mode === 'code' ? 1 : 0;
+
+  return (
+    <div className="reset-progress" aria-label="Password reset progress">
+      {steps.map((step, index) => (
+        <div
+          key={step.key}
+          className={`reset-step${index <= activeIndex ? ' is-active' : ''}${index < activeIndex ? ' is-complete' : ''}`}
+        >
+          <span>{index + 1}</span>
+          <strong>{step.label}</strong>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const Login = () => {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [resetMode, setResetMode] = useState('login');
@@ -218,76 +241,88 @@ const Login = () => {
         )}
 
         {resetMode === 'email' && (
-          <form onSubmit={handleForgotPassword} className="auth-form" autoComplete="off">
-            <div className="form-group">
-              <label>Email</label>
-              <input
-                type="email"
-                value={resetForm.email}
-                onChange={(e) => setResetForm({ ...resetForm, email: e.target.value })}
-                autoComplete="off"
-                required
-                placeholder="Enter your account email"
-              />
-            </div>
-            <button type="submit" className="auth-btn" disabled={loading}>
-              {loading ? <LoadingSpinner /> : 'Send Verification Code'}
-            </button>
-            <button type="button" className="auth-secondary-btn" onClick={backToLogin} disabled={loading}>
-              Back To Login
-            </button>
-          </form>
+          <div className="reset-panel">
+            <ResetProgress mode={resetMode} />
+            <form onSubmit={handleForgotPassword} className="auth-form" autoComplete="off">
+              <div className="form-group">
+                <label>Email</label>
+                <input
+                  type="email"
+                  value={resetForm.email}
+                  onChange={(e) => setResetForm({ ...resetForm, email: e.target.value })}
+                  autoComplete="off"
+                  required
+                  placeholder="Enter your account email"
+                />
+              </div>
+              <button type="submit" className="auth-btn" disabled={loading}>
+                {loading ? <LoadingSpinner /> : 'Send Verification Code'}
+              </button>
+              <button type="button" className="auth-secondary-btn" onClick={backToLogin} disabled={loading}>
+                Back To Login
+              </button>
+            </form>
+          </div>
         )}
 
         {resetMode === 'code' && (
-          <form onSubmit={handleResetPassword} className="auth-form" autoComplete="off">
-            <div className="form-group">
-              <label>Verification Code</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]{6}"
-                maxLength="6"
-                value={resetForm.code}
-                onChange={(e) => setResetForm({ ...resetForm, code: e.target.value.replace(/\D/g, '').slice(0, 6) })}
-                required
-                placeholder="123456"
-              />
-            </div>
-            <div className="form-group">
-              <label>New Password</label>
-              <input
-                type="password"
-                value={resetForm.newPassword}
-                onChange={(e) => setResetForm({ ...resetForm, newPassword: e.target.value })}
-                autoComplete="new-password"
-                required
-                minLength="6"
-                placeholder="Enter new password"
-              />
-            </div>
-            <div className="form-group">
-              <label>Confirm Password</label>
-              <input
-                type="password"
-                value={resetForm.confirmPassword}
-                onChange={(e) => setResetForm({ ...resetForm, confirmPassword: e.target.value })}
-                autoComplete="new-password"
-                required
-                minLength="6"
-                placeholder="Confirm new password"
-              />
-            </div>
-            <button type="submit" className="auth-btn" disabled={loading || resetForm.code.length !== 6}>
-              {loading ? <LoadingSpinner /> : 'Change Password'}
-            </button>
-            <button type="button" className="auth-secondary-btn" onClick={handleForgotPassword} disabled={loading}>
-              Send Code Again
-            </button>
-            <button type="button" className="auth-secondary-btn" onClick={backToLogin} disabled={loading}>
-              Back To Login
-            </button>
-          </form>
+          <div className="reset-panel">
+            <ResetProgress mode={resetMode} />
+            <div className="reset-email-chip">{resetSession?.email}</div>
+            <form onSubmit={handleResetPassword} className="auth-form reset-code-form" autoComplete="off">
+              <div className="form-group">
+                <label>Verification Code</label>
+                <input
+                  className="verification-code-input"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]{6}"
+                  maxLength="6"
+                  value={resetForm.code}
+                  onChange={(e) => setResetForm({ ...resetForm, code: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+                  required
+                  placeholder="123456"
+                />
+              </div>
+              <div className="reset-password-grid">
+                <div className="form-group">
+                  <label>New Password</label>
+                  <input
+                    type="password"
+                    value={resetForm.newPassword}
+                    onChange={(e) => setResetForm({ ...resetForm, newPassword: e.target.value })}
+                    autoComplete="new-password"
+                    required
+                    minLength="6"
+                    placeholder="Enter new password"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Confirm Password</label>
+                  <input
+                    type="password"
+                    value={resetForm.confirmPassword}
+                    onChange={(e) => setResetForm({ ...resetForm, confirmPassword: e.target.value })}
+                    autoComplete="new-password"
+                    required
+                    minLength="6"
+                    placeholder="Confirm new password"
+                  />
+                </div>
+              </div>
+              <button type="submit" className="auth-btn" disabled={loading || resetForm.code.length !== 6}>
+                {loading ? <LoadingSpinner /> : 'Change Password'}
+              </button>
+              <div className="reset-actions">
+                <button type="button" className="auth-secondary-btn" onClick={handleForgotPassword} disabled={loading}>
+                  Send Code Again
+                </button>
+                <button type="button" className="auth-secondary-btn" onClick={backToLogin} disabled={loading}>
+                  Back To Login
+                </button>
+              </div>
+            </form>
+          </div>
         )}
       </div>
     </div>

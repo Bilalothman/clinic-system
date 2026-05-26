@@ -4,14 +4,15 @@
   --color-line: rgba(148, 163, 184, 0.28);
   --color-surface: rgba(255, 255, 255, 0.88);
   --color-surface-strong: rgba(255, 255, 255, 0.96);
+  --color-page: #f6f8fb;
   --color-primary: #4f46e5;
   --color-primary-2: #0ea5e9;
   --color-accent: #10b981;
   --color-warm: #f59e0b;
-  --shadow-soft: 0 18px 45px rgba(15, 23, 42, 0.10);
-  --shadow-lift: 0 28px 70px rgba(15, 23, 42, 0.16);
-  --radius-lg: 20px;
-  --radius-md: 14px;
+  --shadow-soft: 0 12px 30px rgba(15, 23, 42, 0.08);
+  --shadow-lift: 0 20px 48px rgba(15, 23, 42, 0.12);
+  --radius-lg: 12px;
+  --radius-md: 8px;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -44,13 +45,13 @@
 .card {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(145deg, var(--color-surface-strong), rgba(248, 250, 252, 0.88));
-  backdrop-filter: blur(24px) saturate(125%);
-  -webkit-backdrop-filter: blur(24px) saturate(125%);
+  background: var(--color-surface-strong);
+  backdrop-filter: blur(18px) saturate(118%);
+  -webkit-backdrop-filter: blur(18px) saturate(118%);
   border-radius: var(--radius-lg);
-  padding: 2rem;
+  padding: 1.5rem;
   box-shadow: var(--shadow-soft);
-  border: 1px solid rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(203, 213, 225, 0.72);
   transition: transform 0.28s var(--ease-out), box-shadow 0.28s var(--ease-out), border-color 0.28s ease;
 }
 
@@ -60,10 +61,8 @@
   inset: 0;
   pointer-events: none;
   border-radius: inherit;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.65), transparent 34%),
-    linear-gradient(315deg, rgba(14, 165, 233, 0.08), transparent 42%);
-  opacity: 0.9;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.62), transparent 42%);
+  opacity: 0.72;
 }
 
 .card:hover {
@@ -100,7 +99,7 @@
   color: white;
   border: none;
   padding: 0.75rem 1.5rem;
-  border-radius: 999px;
+  border-radius: var(--radius-md);
   font-weight: 600;
   cursor: pointer;
   box-shadow: 0 14px 30px rgba(79, 70, 229, 0.22);
@@ -131,7 +130,7 @@
   color: #3730a3;
   border: 1px solid rgba(79, 70, 229, 0.18);
   padding: 0.75rem 1.5rem;
-  border-radius: 999px;
+  border-radius: var(--radius-md);
   font-weight: 600;
   cursor: pointer;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.07);
@@ -146,7 +145,7 @@
 
 .btn-primary, .btn-secondary {
   border: none;
-  border-radius: 999px;
+  border-radius: var(--radius-md);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -158,7 +157,7 @@
 
 .btn-danger {
   border: none;
-  border-radius: 999px;
+  border-radius: var(--radius-md);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -250,11 +249,28 @@ textarea:disabled {
 
 .management-table {
   background: rgba(255, 255, 255, 0.95);
+  border-collapse: collapse;
+  width: 100%;
 }
 
 .management-table th {
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.94)) !important;
+  background: #111827 !important;
   color: #f8fafc !important;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.management-table th,
+.management-table td {
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.management-table tbody tr:hover {
+  background: rgba(14, 165, 233, 0.06);
 }
 
 .management-table tbody tr,
@@ -301,5 +317,160 @@ textarea:disabled {
   
   .main-content {
     padding: 1rem;
+  }
+}
+
+.layout-container {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.62), transparent 22%),
+    var(--color-page);
+}
+
+.main-content {
+  width: calc(100% - 280px);
+  max-width: 1480px;
+  min-height: 100vh;
+}
+
+.main-content > * {
+  min-width: 0;
+}
+
+.welcome-section,
+.patient-overview-hero,
+.manager-chart-card,
+.doctor-chart-card,
+.manager-summary-card,
+.patient-doctor-card,
+.patient-card-shell,
+.appointment-card,
+.record-card,
+.lab-result-card,
+.manager-complaint-card,
+.review-card,
+.location-card,
+.contact-card {
+  border-radius: var(--radius-lg) !important;
+  border: 1px solid rgba(203, 213, 225, 0.72) !important;
+  background: rgba(255, 255, 255, 0.94) !important;
+  box-shadow: var(--shadow-soft) !important;
+}
+
+.welcome-section:hover,
+.patient-overview-hero:hover,
+.manager-chart-card:hover,
+.doctor-chart-card:hover,
+.manager-summary-card:hover,
+.patient-doctor-card:hover,
+.patient-card-shell:hover,
+.appointment-card:hover,
+.record-card:hover,
+.lab-result-card:hover,
+.manager-complaint-card:hover,
+.review-card:hover {
+  border-color: rgba(14, 165, 233, 0.28) !important;
+  box-shadow: var(--shadow-lift) !important;
+}
+
+.welcome-section,
+.patient-overview-hero {
+  text-align: left !important;
+}
+
+.welcome-section h2,
+.patient-overview-hero h2,
+.card-header h3,
+.manager-chart-header h3,
+.doctor-chart-header h3 {
+  color: #111827 !important;
+  letter-spacing: 0;
+}
+
+.welcome-section p,
+.patient-overview-hero p {
+  max-width: 760px;
+  color: #475569 !important;
+}
+
+.stats-grid,
+.manager-summary-grid,
+.manager-chart-grid,
+.doctor-chart-grid,
+.patient-doctor-grid {
+  gap: 1rem !important;
+}
+
+.stat-card,
+.manager-summary-card {
+  min-height: 130px;
+}
+
+.manager-summary-card::after {
+  display: none;
+}
+
+.manager-summary-card span,
+.patient-specialty-label,
+.patient-review-type {
+  letter-spacing: 0.04em;
+}
+
+.patient-form,
+.doctor-verification-form,
+.appointment-edit-form,
+.record-form,
+.lab-form,
+.review-form,
+.complaint-form,
+.profile-edit-form,
+.contact-form {
+  border-radius: var(--radius-lg) !important;
+  border: 1px solid rgba(203, 213, 225, 0.78) !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+}
+
+.patient-form-grid input,
+.doctor-verification-form input,
+.appointment-edit-form input,
+.appointment-edit-form select,
+.appointment-edit-form textarea,
+.record-form input,
+.record-form select,
+.record-form textarea,
+.lab-form input,
+.lab-form select,
+.lab-form textarea,
+.profile-edit-form input,
+.profile-edit-form select,
+.profile-edit-form textarea,
+.contact-form input,
+.contact-form textarea {
+  border-radius: var(--radius-md) !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #ffffff !important;
+}
+
+.empty-state,
+.patient-doctor-state,
+.doctor-stats-state,
+.manager-stats-state {
+  border-radius: var(--radius-lg) !important;
+  border: 1px dashed rgba(148, 163, 184, 0.55) !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+}
+
+.patient-actions,
+.patient-form-actions,
+.appointment-actions,
+.record-actions,
+.lab-actions,
+.doctor-actions {
+  align-items: center;
+}
+
+@media (max-width: 1024px) {
+  .main-content {
+    width: 100%;
   }
 }
