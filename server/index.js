@@ -101,7 +101,11 @@ const toDateValue = (value) => {
     return new Date(value.getFullYear(), value.getMonth(), value.getDate());
   }
 
-  const parsed = new Date(`${String(value).slice(0, 10)}T00:00:00`);
+  const text = String(value).trim();
+  const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const parsed = isoMatch
+    ? new Date(`${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}T00:00:00`)
+    : new Date(text);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
@@ -110,7 +114,8 @@ const toDateOnlyString = (value) => {
     return value || null;
   }
 
-  return String(value).slice(0, 10);
+  const dateValue = toDateValue(value);
+  return dateValue ? toIsoDate(dateValue) : null;
 };
 
 const calculateAgeFromDob = (value) => {
@@ -299,9 +304,35 @@ const passwordMatches = async (plain, stored) => {
   }
 };
 
-const isStrongPatientPassword = (value) => {
+const formatMissingPasswordParts = (parts) => {
+  if (parts.length === 1) {
+    return parts[0];
+  }
+
+  if (parts.length === 2) {
+    return `${parts[0]} and ${parts[1]}`;
+  }
+
+  return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`;
+};
+
+const getStrongPasswordMessage = (value) => {
   const password = String(value || '');
-  return /[A-Z]/.test(password) && /\d/.test(password) && /[^A-Za-z0-9]/.test(password);
+  const missing = [];
+
+  if (!/[A-Z]/.test(password)) {
+    missing.push('one uppercase letter');
+  }
+
+  if (!/\d/.test(password)) {
+    missing.push('one number');
+  }
+
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    missing.push('one symbol');
+  }
+
+  return missing.length ? `Password must include ${formatMissingPasswordParts(missing)}.` : '';
 };
 
 const signToken = (role, userId) => jwt.sign(
@@ -1034,8 +1065,9 @@ app.post('/api/auth/reset-password', asyncHandler(async (req, res) => {
     return;
   }
 
-  if (newPassword.length < 6) {
-    res.status(400).json({ message: 'New password must be at least 6 characters.' });
+  const passwordError = getStrongPasswordMessage(newPassword);
+  if (passwordError) {
+    res.status(400).json({ message: passwordError });
     return;
   }
 
@@ -1086,9 +1118,10 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
     return;
   }
 
-  if (!isStrongPatientPassword(password)) {
+  const passwordError = getStrongPasswordMessage(password);
+  if (passwordError) {
     res.status(400).json({
-      message: 'Password must include at least one uppercase letter, one number, and one symbol.',
+      message: passwordError,
     });
     return;
   }
@@ -1338,7 +1371,14 @@ app.get('/api/auth/me', requireAuth, asyncHandler(async (req, res) => {
 }));
 
 app.patch('/api/profile', requireAuth, asyncHandler(async (req, res) => {
-  const { name, phone, address, dob, gender, avatar, avatarName } = req.body || {};
+  const { name, phone, address, dob, gender, avatar, avatarName, password } = req.body || {};
+  const nextPassword = password !== undefined ? String(password) : '';
+
+  const passwordError = nextPassword ? getStrongPasswordMessage(nextPassword) : '';
+  if (passwordError) {
+    res.status(400).json({ message: passwordError });
+    return;
+  }
 
   if (req.user.role === 'patient') {
     const existing = await patientById(req.user.userId);
@@ -1348,14 +1388,17 @@ app.patch('/api/profile', requireAuth, asyncHandler(async (req, res) => {
       return;
     }
 
+    const passwordHash = nextPassword ? await bcrypt.hash(nextPassword, 10) : existing.password;
+
     await query(
       `UPDATE patient
-       SET full_name = ?, email = ?, phone = ?, address = ?, dob = ?, gender = ?,
+       SET full_name = ?, email = ?, password = ?, phone = ?, address = ?, dob = ?, gender = ?,
            profile_image = ?, profile_image_name = ?
        WHERE patient_id = ?`,
       [
         name !== undefined ? String(name).trim() : existing.full_name,
         existing.email,
+        passwordHash,
         phone !== undefined ? String(phone).trim() : existing.phone,
         address !== undefined ? String(address).trim() : existing.address,
         dob !== undefined ? dob : existing.dob,
@@ -1378,14 +1421,17 @@ app.patch('/api/profile', requireAuth, asyncHandler(async (req, res) => {
     return;
   }
 
+  const passwordHash = nextPassword ? await bcrypt.hash(nextPassword, 10) : existing.password;
+
   await query(
     `UPDATE doctor
-     SET full_name = ?, email = ?, phone = ?, address = ?, dob = ?, gender = ?,
+     SET full_name = ?, email = ?, password = ?, phone = ?, address = ?, dob = ?, gender = ?,
          profile_image = ?, profile_image_name = ?
      WHERE doctor_id = ?`,
     [
       name !== undefined ? String(name).trim() : existing.full_name,
       existing.email,
+      passwordHash,
       phone !== undefined ? String(phone).trim() : existing.phone,
       address !== undefined ? String(address).trim() : existing.address,
       dob !== undefined ? dob : existing.dob,
@@ -2144,6 +2190,12 @@ app.post('/api/doctors', requireAuth, requireRoles('manager'), asyncHandler(asyn
     return;
   }
 
+  const passwordError = getStrongPasswordMessage(password);
+  if (passwordError) {
+    res.status(400).json({ message: passwordError });
+    return;
+  }
+
   const [doctorExists, patientExists] = await Promise.all([
     query('SELECT doctor_id FROM doctor WHERE LOWER(email) = LOWER(?) LIMIT 1', [normalizedEmail]),
     query('SELECT patient_id FROM patient WHERE LOWER(email) = LOWER(?) LIMIT 1', [normalizedEmail]),
@@ -2252,12 +2304,21 @@ app.post('/api/doctors/verify', requireAuth, requireRoles('manager'), asyncHandl
 app.put('/api/doctors/:id', requireAuth, requireRoles('manager'), asyncHandler(async (req, res) => {
   const doctorId = Number(req.params.id);
   const { name, specialty, phone, password, fee } = req.body || {};
+  const nextPassword = password !== undefined ? String(password) : '';
 
   const existing = await doctorById(doctorId);
   if (!existing || existing.role !== 'doctor') {
     res.status(404).json({ message: 'Doctor not found.' });
     return;
   }
+
+  const passwordError = nextPassword ? getStrongPasswordMessage(nextPassword) : '';
+  if (passwordError) {
+    res.status(400).json({ message: passwordError });
+    return;
+  }
+
+  const passwordHash = nextPassword ? await bcrypt.hash(nextPassword, 10) : existing.password;
 
   await query(
     `UPDATE doctor
@@ -2268,7 +2329,7 @@ app.put('/api/doctors/:id', requireAuth, requireRoles('manager'), asyncHandler(a
       specialty || existing.specialty,
       phone || existing.phone,
       existing.email,
-      password || existing.password,
+      passwordHash,
       Number.isFinite(Number(fee)) ? Number(fee) : existing.consultation_fee,
       doctorId,
     ]

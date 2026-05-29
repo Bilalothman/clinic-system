@@ -7,11 +7,36 @@ import GoogleSignInButton from './GoogleSignInButton';
 import '../auth/Login.css';
 import '../auth/Register.css';
 
-const isStrongPassword = (value) => (
-  /[A-Z]/.test(String(value || '')) &&
-  /\d/.test(String(value || '')) &&
-  /[^A-Za-z0-9]/.test(String(value || ''))
-);
+const formatMissingPasswordParts = (parts) => {
+  if (parts.length === 1) {
+    return parts[0];
+  }
+
+  if (parts.length === 2) {
+    return `${parts[0]} and ${parts[1]}`;
+  }
+
+  return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`;
+};
+
+const getStrongPasswordMessage = (value) => {
+  const password = String(value || '');
+  const missing = [];
+
+  if (!/[A-Z]/.test(password)) {
+    missing.push('one uppercase letter');
+  }
+
+  if (!/\d/.test(password)) {
+    missing.push('one number');
+  }
+
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    missing.push('one symbol');
+  }
+
+  return missing.length ? `Password must include ${formatMissingPasswordParts(missing)}.` : '';
+};
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -46,8 +71,9 @@ const Register = () => {
     setLoading(true);
     setError('');
 
-    if (!isStrongPassword(formData.password)) {
-      setError('Password must include at least one uppercase letter, one number, and one symbol.');
+    const passwordError = getStrongPasswordMessage(formData.password);
+    if (passwordError) {
+      setError(passwordError);
       setLoading(false);
       return;
     }

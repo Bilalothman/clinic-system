@@ -4,6 +4,38 @@ import { useApi } from '../../../hooks/useApi';
 import './DoctorsManagement.css';
 
 const emptyDoctor = { name: '', specialty: '', phone: '', email: '', password: '', fee: '' };
+const strongPasswordMessage = 'Password must include at least one uppercase letter, one number, and one symbol.';
+
+const formatMissingPasswordParts = (parts) => {
+  if (parts.length === 1) {
+    return parts[0];
+  }
+
+  if (parts.length === 2) {
+    return `${parts[0]} and ${parts[1]}`;
+  }
+
+  return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`;
+};
+
+const getStrongPasswordMessage = (value) => {
+  const password = String(value || '');
+  const missing = [];
+
+  if (!/[A-Z]/.test(password)) {
+    missing.push('one uppercase letter');
+  }
+
+  if (!/\d/.test(password)) {
+    missing.push('one number');
+  }
+
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    missing.push('one symbol');
+  }
+
+  return missing.length ? `Password must include ${formatMissingPasswordParts(missing)}.` : '';
+};
 
 const DoctorsManagement = () => {
   const { apiCall } = useApi();
@@ -110,12 +142,19 @@ const DoctorsManagement = () => {
 
   const handleAddDoctor = async (e) => {
     e.preventDefault();
-    setLoading(true);
+
+    const passwordError = getStrongPasswordMessage(newDoctor.password);
+    if (passwordError) {
+      setFeedback(passwordError);
+      return;
+    }
 
     const payload = {
       ...newDoctor,
       fee: Number(newDoctor.fee || 0),
     };
+
+    setLoading(true);
 
     try {
       const result = await apiCall('/doctors', {
@@ -169,6 +208,12 @@ const DoctorsManagement = () => {
     }
 
     if (String(newDoctor.password || '').trim()) {
+      const passwordError = getStrongPasswordMessage(newDoctor.password);
+      if (passwordError) {
+        setFeedback(passwordError);
+        return;
+      }
+
       payload.password = newDoctor.password;
     }
 
@@ -249,7 +294,10 @@ const DoctorsManagement = () => {
             <input autoComplete="off" placeholder="Specialty" value={newDoctor.specialty} onChange={(e) => handleChange('specialty', e.target.value)} required />
             <input autoComplete="off" placeholder="Phone" value={newDoctor.phone} onChange={(e) => handleChange('phone', e.target.value)} required />
             <input autoComplete="new-password" type="email" placeholder="Email" value={newDoctor.email} onChange={(e) => handleChange('email', e.target.value)} required />
-            <input autoComplete="new-password" type="password" placeholder="Password" value={newDoctor.password} onChange={(e) => handleChange('password', e.target.value)} required />
+            <div className="password-field">
+              <input autoComplete="new-password" type="password" placeholder="Password" value={newDoctor.password} onChange={(e) => handleChange('password', e.target.value)} required />
+              <div className="password-hint">{strongPasswordMessage}</div>
+            </div>
             <input autoComplete="off" type="number" min="1" placeholder="Consultation Fee" value={newDoctor.fee} onChange={(e) => handleChange('fee', e.target.value)} required />
           </div>
 
@@ -330,7 +378,10 @@ const DoctorsManagement = () => {
                           <input autoComplete="off" placeholder="Specialty" value={newDoctor.specialty} onChange={(e) => handleChange('specialty', e.target.value)} />
                           <input autoComplete="off" placeholder="Phone" value={newDoctor.phone} onChange={(e) => handleChange('phone', e.target.value)} />
                           <input autoComplete="new-password" type="email" placeholder="Email" value={newDoctor.email} disabled readOnly />
-                          <input autoComplete="new-password" type="password" placeholder="Password (leave blank to keep current)" value={newDoctor.password} onChange={(e) => handleChange('password', e.target.value)} />
+                          <div className="password-field">
+                            <input autoComplete="new-password" type="password" placeholder="Password (leave blank to keep current)" value={newDoctor.password} onChange={(e) => handleChange('password', e.target.value)} />
+                            <div className="password-hint">{strongPasswordMessage}</div>
+                          </div>
                           <input autoComplete="off" type="number" min="0" placeholder="Consultation Fee" value={newDoctor.fee} onChange={(e) => handleChange('fee', e.target.value)} />
                         </div>
                         <div className="form-actions">

@@ -28,12 +28,65 @@ const formatGender = (value) => {
   return genderOptions.find((option) => option.value === normalized)?.label || '-';
 };
 
+const toDateOnlyString = (value) => {
+  const text = String(value).trim();
+  const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+  }
+
+  const parsed = new Date(text);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return text;
+  }
+
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const formatDateOnly = (value) => {
   if (value === null || value === undefined || value === '') {
     return '-';
   }
 
-  return String(value).slice(0, 10);
+  return toDateOnlyString(value);
+};
+
+const strongPasswordMessage = 'Password must include at least one uppercase letter, one number, and one symbol.';
+
+const formatMissingPasswordParts = (parts) => {
+  if (parts.length === 1) {
+    return parts[0];
+  }
+
+  if (parts.length === 2) {
+    return `${parts[0]} and ${parts[1]}`;
+  }
+
+  return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`;
+};
+
+const getStrongPasswordMessage = (value) => {
+  const password = String(value || '');
+  const missing = [];
+
+  if (!/[A-Z]/.test(password)) {
+    missing.push('one uppercase letter');
+  }
+
+  if (!/\d/.test(password)) {
+    missing.push('one number');
+  }
+
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    missing.push('one symbol');
+  }
+
+  return missing.length ? `Password must include ${formatMissingPasswordParts(missing)}.` : '';
 };
 
 const compressImageToDataUrl = (file) =>
@@ -89,6 +142,8 @@ const MyProfile = ({ title = 'My Profile' }) => {
     address: '',
     avatar: '',
     avatarName: '',
+    password: '',
+    confirmPassword: '',
   });
   const [selectedDays, setSelectedDays] = useState([]);
   const [selectedTimes, setSelectedTimes] = useState([]);
@@ -101,10 +156,12 @@ const MyProfile = ({ title = 'My Profile' }) => {
       email: profile.email || '',
       phone: profile.phone || '',
       gender: normalizeGender(profile.gender),
-      dob: profile.dob || '',
+      dob: profile.dob ? toDateOnlyString(profile.dob) : '',
       address: profile.address || '',
       avatar: profile.avatar || '',
       avatarName: profile.avatarName || '',
+      password: '',
+      confirmPassword: '',
     });
   }, [profile.address, profile.avatar, profile.avatarName, profile.dob, profile.email, profile.gender, profile.name, profile.phone]);
 
@@ -241,6 +298,19 @@ const MyProfile = ({ title = 'My Profile' }) => {
       return;
     }
 
+    if (profileForm.password || profileForm.confirmPassword) {
+      if (profileForm.password !== profileForm.confirmPassword) {
+        setProfileFeedback('New password and confirmation do not match.');
+        return;
+      }
+
+      const passwordError = getStrongPasswordMessage(profileForm.password);
+      if (passwordError) {
+        setProfileFeedback(passwordError);
+        return;
+      }
+    }
+
     try {
       const payload = {
         name: profileForm.name.trim(),
@@ -256,6 +326,10 @@ const MyProfile = ({ title = 'My Profile' }) => {
         payload.email = profileForm.email.trim();
       }
 
+      if (profileForm.password) {
+        payload.password = profileForm.password;
+      }
+
       const updated = await apiCall('/profile', {
         method: 'PATCH',
         body: JSON.stringify(payload),
@@ -265,6 +339,11 @@ const MyProfile = ({ title = 'My Profile' }) => {
       updateProfile(nextProfile);
       setProfileFeedback('Profile updated successfully.');
       setIsEditingProfile(false);
+      setProfileForm((current) => ({
+        ...current,
+        password: '',
+        confirmPassword: '',
+      }));
     } catch (error) {
       setProfileFeedback(error.message || 'Could not update profile.');
     }
@@ -411,6 +490,31 @@ const MyProfile = ({ title = 'My Profile' }) => {
                     />
                   </div>
 
+                  <div className="doctor-profile-field">
+                    <label htmlFor="doctor-profile-password">New Password</label>
+                    <input
+                      id="doctor-profile-password"
+                      type="password"
+                      value={profileForm.password}
+                      onChange={(e) => handleProfileFieldChange('password', e.target.value)}
+                      autoComplete="new-password"
+                      placeholder="Leave blank to keep current"
+                    />
+                    <div className="profile-password-hint">{strongPasswordMessage}</div>
+                  </div>
+
+                  <div className="doctor-profile-field">
+                    <label htmlFor="doctor-profile-confirm-password">Confirm New Password</label>
+                    <input
+                      id="doctor-profile-confirm-password"
+                      type="password"
+                      value={profileForm.confirmPassword}
+                      onChange={(e) => handleProfileFieldChange('confirmPassword', e.target.value)}
+                      autoComplete="new-password"
+                      placeholder="Confirm new password"
+                    />
+                  </div>
+
                   <div className="doctor-profile-field doctor-profile-field-wide">
                     <label htmlFor="doctor-profile-photo">Profile Photo</label>
                     <input
@@ -449,10 +553,12 @@ const MyProfile = ({ title = 'My Profile' }) => {
                         email: profile.email || '',
                         phone: profile.phone || '',
                         gender: normalizeGender(profile.gender),
-                        dob: profile.dob || '',
+                        dob: profile.dob ? toDateOnlyString(profile.dob) : '',
                         address: profile.address || '',
                         avatar: profile.avatar || '',
                         avatarName: profile.avatarName || '',
+                        password: '',
+                        confirmPassword: '',
                       });
                     }}
                   >

@@ -124,6 +124,12 @@
   background: #fff;
 }
 
+.profile-password-hint {
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
 .doctor-profile-field-wide {
   grid-column: span 2;
 }

@@ -6,6 +6,39 @@ import LoadingSpinner from '../common/LoadingSpinner';
 import GoogleSignInButton from './GoogleSignInButton';
 import '../auth/Login.css';
 
+const strongPasswordMessage = 'Password must include at least one uppercase letter, one number, and one symbol.';
+
+const formatMissingPasswordParts = (parts) => {
+  if (parts.length === 1) {
+    return parts[0];
+  }
+
+  if (parts.length === 2) {
+    return `${parts[0]} and ${parts[1]}`;
+  }
+
+  return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`;
+};
+
+const getStrongPasswordMessage = (value) => {
+  const password = String(value || '');
+  const missing = [];
+
+  if (!/[A-Z]/.test(password)) {
+    missing.push('one uppercase letter');
+  }
+
+  if (!/\d/.test(password)) {
+    missing.push('one number');
+  }
+
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    missing.push('one symbol');
+  }
+
+  return missing.length ? `Password must include ${formatMissingPasswordParts(missing)}.` : '';
+};
+
 const ResetProgress = ({ mode }) => {
   const steps = [
     { key: 'email', label: 'Email' },
@@ -138,6 +171,13 @@ const Login = () => {
     if (resetForm.newPassword !== resetForm.confirmPassword) {
       setLoading(false);
       setError('New password and confirmation do not match.');
+      return;
+    }
+
+    const passwordError = getStrongPasswordMessage(resetForm.newPassword);
+    if (passwordError) {
+      setLoading(false);
+      setError(passwordError);
       return;
     }
 
@@ -293,9 +333,9 @@ const Login = () => {
                     onChange={(e) => setResetForm({ ...resetForm, newPassword: e.target.value })}
                     autoComplete="new-password"
                     required
-                    minLength="6"
                     placeholder="Enter new password"
                   />
+                  <div className="password-hint">{strongPasswordMessage}</div>
                 </div>
                 <div className="form-group">
                   <label>Confirm Password</label>
@@ -305,7 +345,6 @@ const Login = () => {
                     onChange={(e) => setResetForm({ ...resetForm, confirmPassword: e.target.value })}
                     autoComplete="new-password"
                     required
-                    minLength="6"
                     placeholder="Confirm new password"
                   />
                 </div>

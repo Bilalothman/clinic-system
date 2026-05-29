@@ -299,6 +299,14 @@
   margin-top: 0.8rem;
 }
 
+.password-hint {
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.35;
+  margin-top: 0.35rem;
+}
+
 .auth-divider {
   display: flex;
   align-items: center;
