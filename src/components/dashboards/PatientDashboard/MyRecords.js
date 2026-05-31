@@ -166,33 +166,30 @@ const MyRecords = () => {
         <h3>My Medical Records</h3>
       </div>
 
-      <div className="records-timeline">
+      <div className="medical-records-list">
         {records.map((record, index) => (
-          <div key={record.id || index} className="timeline-item">
-            <div className="timeline-date">{record.date}</div>
-            <div className="timeline-content">
-              <div className="record-header">
+          <div key={record.id || index} className="medical-record-card">
+            <div className="medical-record-head">
+              <div>
                 <h5>{record.doctor || 'Doctor'}</h5>
-                <div className="record-header-actions">
-                  <span className="diagnosis-tag">Medical Record</span>
-                  <button
-                    type="button"
-                    className="record-export"
-                    onClick={() => exportMedicalRecordPdf(record)}
-                  >
-                    Export PDF
-                  </button>
-                </div>
+                <span>{record.date}</span>
               </div>
-              <div className="record-field">
-                <strong>Diagnosis:</strong> {record.diagnosis || 'No diagnosis provided'}
-              </div>
-              <div className="record-field prescription">
-                <strong>Prescription:</strong> {record.prescription || 'No prescription provided'}
-              </div>
-              <div className="record-field notes">
-                <strong>Notes:</strong> {record.notes || 'No notes provided'}
-              </div>
+              <button
+                type="button"
+                className="medical-record-export"
+                onClick={() => exportMedicalRecordPdf(record)}
+              >
+                Export PDF
+              </button>
+            </div>
+            <div className="record-field">
+              <strong>Diagnosis:</strong> {record.diagnosis || 'No diagnosis provided'}
+            </div>
+            <div className="record-field prescription">
+              <strong>Prescription:</strong> {record.prescription || 'No prescription provided'}
+            </div>
+            <div className="record-field notes">
+              <strong>Notes:</strong> {record.notes || 'No notes provided'}
             </div>
           </div>
         ))}
