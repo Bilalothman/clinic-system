@@ -11,7 +11,15 @@ const OpenAI = require('openai');
 const { toFile } = OpenAI;
 const { OAuth2Client } = require('google-auth-library');
 const { query } = require('./db');
-const { requireAuth, requireRoles } = require('./middleware/auth');
+const { getJwtSecret, requireAuth, requireRoles } = require('./middleware/auth');
+
+// Fail fast at startup instead of running with an insecure token secret.
+try {
+  getJwtSecret();
+} catch (error) {
+  console.error(error.message);
+  process.exit(1);
+}
 
 const app = express();
 const PORT = Number(process.env.API_PORT || process.env.SERVER_PORT || 3001);
@@ -287,21 +295,36 @@ const getMissingPatientProfileFields = (patient) => {
     .map(([, label]) => label);
 };
 
-// Support both hashed passwords and older plain-text seed data during login.
+const isBcryptHash = (value) => /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(String(value || ''));
+
+// Hashed passwords are checked with bcrypt only, so a leaked hash can never be used as a password.
+// Legacy plain-text rows (from old seed data) are compared in constant time and then
+// re-hashed on successful login by upgradeLegacyPassword, so they disappear over time.
 const passwordMatches = async (plain, stored) => {
-  if (!stored) {
+  if (!stored || typeof plain !== 'string' || !plain) {
     return false;
   }
 
-  if (plain === stored) {
-    return true;
+  if (isBcryptHash(stored)) {
+    try {
+      return await bcrypt.compare(plain, stored);
+    } catch (error) {
+      return false;
+    }
   }
 
-  try {
-    return await bcrypt.compare(plain, stored);
-  } catch (error) {
-    return false;
+  const plainBuffer = Buffer.from(plain);
+  const storedBuffer = Buffer.from(String(stored));
+  return plainBuffer.length === storedBuffer.length && crypto.timingSafeEqual(plainBuffer, storedBuffer);
+};
+
+const upgradeLegacyPassword = async (table, idColumn, id, plain, stored) => {
+  if (isBcryptHash(stored)) {
+    return;
   }
+
+  const passwordHash = await bcrypt.hash(plain, 10);
+  await query(`UPDATE ${table} SET password = ? WHERE ${idColumn} = ?`, [passwordHash, id]);
 };
 
 const formatMissingPasswordParts = (parts) => {
@@ -337,7 +360,7 @@ const getStrongPasswordMessage = (value) => {
 
 const signToken = (role, userId) => jwt.sign(
   { role, userId: String(userId) },
-  process.env.JWT_SECRET || 'clinic-dev-secret',
+  getJwtSecret(),
   { expiresIn: '7d' }
 );
 
@@ -891,12 +914,14 @@ const ensurePatient = async ({ patientId, patientName }) => {
 
   const safeName = patientName?.trim() || `Patient ${Date.now()}`;
   const generatedEmail = `patient.${Date.now()}@local.demo`;
+  // Auto-generated records get a random, unusable password instead of a shared default.
+  const unusablePassword = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
 
   const result = await query(
     `INSERT INTO patient
       (full_name, email, password, phone, address, status)
      VALUES (?, ?, ?, ?, ?, 'active')`,
-    [safeName, generatedEmail, 'patient123', '-', 'Auto-generated from appointment']
+    [safeName, generatedEmail, unusablePassword, '-', 'Auto-generated from appointment']
   );
 
   return patientById(result.insertId);
@@ -976,6 +1001,8 @@ app.post('/api/auth/login', asyncHandler(async (req, res) => {
       return;
     }
 
+    await upgradeLegacyPassword('doctor', 'doctor_id', doctor.doctor_id, password, doctor.password);
+
     const role = doctor.role === 'manager' ? 'manager' : 'doctor';
     const token = signToken(role, doctor.doctor_id);
     const profile = await buildProfile(role, doctor.doctor_id);
@@ -997,6 +1024,8 @@ app.post('/api/auth/login', asyncHandler(async (req, res) => {
     res.status(401).json({ message: 'Invalid credentials.' });
     return;
   }
+
+  await upgradeLegacyPassword('patient', 'patient_id', patient.patient_id, password, patient.password);
 
   const token = signToken('patient', patient.patient_id);
   const profile = await buildProfile('patient', patient.patient_id);
@@ -2480,6 +2509,8 @@ app.put('/api/patients/:id', requireAuth, requireRoles('manager'), asyncHandler(
     status,
   } = req.body || {};
   const nextStatus = ['active', 'inactive'].includes(status) ? status : existing.status;
+  const nextPassword = typeof password === 'string' && password.trim() ? password : '';
+  const passwordHash = nextPassword ? await bcrypt.hash(nextPassword, 10) : existing.password;
 
   await query(
     `UPDATE patient
@@ -2489,7 +2520,7 @@ app.put('/api/patients/:id', requireAuth, requireRoles('manager'), asyncHandler(
     [
       name ?? existing.full_name,
       existing.email,
-      password ?? existing.password,
+      passwordHash,
       phone ?? existing.phone,
       address ?? existing.address,
       dob ?? existing.dob,

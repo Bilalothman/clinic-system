@@ -1,79 +1,118 @@
-# Getting Started with Create React App
+# Clinic Management System
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A full-stack web application for running a medical clinic: patients book appointments and view their records, doctors manage their schedule and patient files, and managers oversee doctors, patients, reviews and complaints.
 
-## Available Scripts
+Built solo as my Computer Science graduation project at the Lebanese International University (2026).
 
-In the project directory, you can run:
+**Stack:** React 18 · Node.js · Express · MySQL · JWT · Google Sign-In · OpenAI API · Nodemailer
 
-### `npm start`
+<!--
+## Screenshots
+Add 3–4 screenshots to docs/screenshots/ and uncomment:
+![Patient dashboard](docs/screenshots/patient-dashboard.png)
+![Doctor appointments](docs/screenshots/doctor-appointments.png)
+![Manager dashboard](docs/screenshots/manager-dashboard.png)
+-->
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## Features
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+### Patients
+- Register with email verification or sign in with Google
+- Book appointments by doctor, specialty, date and time slot
+- Track appointment status and get email updates when an appointment is confirmed or cancelled
+- View medical records, prescriptions and lab results
+- **AI specialty advice:** describe symptoms and get the clinic specialty that fits best
+- **AI report explainer:** upload a lab report PDF and get its medical terms explained in plain language
+- Rate and review doctors, send complaints, and see the clinic location and contact details
 
-### `npm run start:api`
+### Doctors
+- Dashboard with appointment and patient statistics
+- Confirm or cancel appointments; conflicting pending bookings for the same slot are cancelled automatically
+- Manage patients, write medical records and prescriptions, and upload lab results
+- Set consultation fee and weekly availability
 
-Runs the backend API on [http://localhost:3001](http://localhost:3001).
+### Managers
+- Dashboard with clinic-wide statistics
+- Add doctors (with email verification), edit or remove them, and manage fees and availability
+- Manage patients, monitor all appointments, moderate doctor reviews and handle patient complaints
 
-Before running it:
-1. Import `database/clinic_system.sql` in phpMyAdmin.
-2. Copy `.env.example` to `.env` and set your MySQL credentials.
-3. Install dependencies with `npm install`.
+## Architecture
 
-### `npm test`
+```
+React SPA (port 3000)  ──REST/JSON──▶  Express API (port 3001)  ──▶  MySQL
+                                              │
+                                              ├──▶ OpenAI API      (specialty advice, PDF explanation)
+                                              ├──▶ Google OAuth    (Sign-In token verification)
+                                              └──▶ SMTP/Nodemailer (verification codes, appointment emails)
+```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+- **API:** 41 REST endpoints covering auth, profiles, doctors, patients, appointments, medical records, lab results, reviews and complaints
+- **Database:** 10 relational tables linked by 19 foreign keys (`doctor`, `patient`, `appointment`, `medical_record`, `prescription`, `lab_result`, `bills`, `doctor_review`, `patient_complaint`, `patient_report`)
+- **Security:** bcrypt password hashing, JWT authentication (7-day tokens), role-based access control for `patient`, `doctor` and `manager`, verification codes stored as SHA-256 hashes, and Google ID tokens verified server-side
 
-### `npm run build`
+## Project Structure
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+```
+clinic_system/
+├── database/            # SQL schema + migration scripts
+├── server/
+│   ├── index.js         # Express API (routes, email, AI features)
+│   ├── db.js            # MySQL connection pool
+│   └── middleware/
+│       └── auth.js      # JWT verification + role checks
+└── src/
+    ├── components/
+    │   ├── auth/        # Login, Register, Google Sign-In
+    │   ├── common/      # Header, Sidebar, Profile, Spinner
+    │   └── dashboards/  # Patient, Doctor and Manager dashboards
+    ├── hooks/           # useAuth, useApi
+    └── styles/
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## Getting Started
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### Prerequisites
+- Node.js 18+
+- MySQL (e.g. via XAMPP / phpMyAdmin)
 
-### `npm run eject`
+### Setup
+1. Clone the repository and install dependencies:
+   ```bash
+   git clone https://github.com/Bilalothman/clinic-system.git
+   cd clinic-system
+   npm install
+   ```
+2. Create the database: in phpMyAdmin, import `database/clinic_system.sql` (see [database/README.md](database/README.md)).
+3. Copy `.env.example` to `.env` and fill in the values:
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+   | Variable | Required | Purpose |
+   | --- | --- | --- |
+   | `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | Yes | MySQL connection |
+   | `JWT_SECRET` | Yes | Signs login tokens. Use a long random string; the API will not start without it |
+   | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | For email | Verification codes and appointment emails |
+   | `GOOGLE_CLIENT_ID`, `REACT_APP_GOOGLE_CLIENT_ID` | For Google Sign-In | OAuth client ID |
+   | `OPENAI_API_KEY` | For AI features | Specialty advice and PDF explanation |
+   | `CORS_ORIGIN` | No | Front-end origin (default `http://localhost:3000`) |
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+4. Start the front end and the API together:
+   ```bash
+   npm start
+   ```
+   - Web app: http://localhost:3000
+   - API: http://localhost:3001 (health check: `/api/health`)
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+### Other scripts
+| Command | Description |
+| --- | --- |
+| `npm run start:web` | Front end only |
+| `npm run start:api` | API only |
+| `npm run build` | Production build of the front end |
+| `npm test` | Run tests |
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+## Disclaimer
 
-## Learn More
+The AI features give general guidance only and are not a medical diagnosis.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+## Author
 
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+**Bilal Othman** — [LinkedIn](https://www.linkedin.com/in/bilal-othman-a6814431b) · [GitHub](https://github.com/Bilalothman)

@@ -1,5 +1,14 @@
 const jwt = require('jsonwebtoken');
 
+// Never fall back to a hard-coded secret: anyone reading the source could forge tokens.
+const getJwtSecret = () => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || !secret.trim()) {
+    throw new Error('JWT_SECRET is not set. Add it to your .env file before starting the API.');
+  }
+  return secret;
+};
+
 const getAuthToken = (req) => {
   const authHeader = req.headers.authorization || '';
   if (!authHeader.startsWith('Bearer ')) {
@@ -18,7 +27,7 @@ const requireAuth = (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'clinic-dev-secret');
+    const decoded = jwt.verify(token, getJwtSecret());
     req.user = decoded;
     next();
   } catch (error) {
@@ -36,6 +45,7 @@ const requireRoles = (...roles) => (req, res, next) => {
 };
 
 module.exports = {
+  getJwtSecret,
   requireAuth,
   requireRoles,
 };
