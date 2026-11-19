@@ -115,4 +115,4 @@ The AI features give general guidance only and are not a medical diagnosis.
 
 ## Author
 
-**Bilal Othman** — [LinkedIn](https://www.linkedin.com/in/bilal-othman-a6814431b) · [GitHub](https://github.com/Bilalothman)
+**Bilal Othman** — [LinkedIn](https://www.linkedin.com/in/bilal-othman-developer) · [GitHub](https://github.com/Bilalothman)
